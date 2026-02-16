@@ -1,0 +1,35 @@
+/* Color palette used:  
+Ink black #0D1F2D (set for background, change in app.css)
+Blue slate #546A7B
+Cool steel #9EA3B0
+Soft blush #FAE1DF
+Desert sand #E4C3AD
+
+*/
+
+.spacer {
+    height: 100px;
+}
+
+.file-container{
+    background-color: #0D1F2D;
+    height: 550px;
+}
+
+.WS-title{
+    font-size: 50px;
+    font-family:Verdana, Geneva, Tahoma, sans-serif;
+}
+
+.file-upload{
+    height: 300px;
+    width: 50%;
+};
+
+.upload-file-box{
+    width: 50%;
+}
+
+.footer{
+    height: 300px;
+}

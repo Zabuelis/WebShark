@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-
+@import './style.css';
 @import 'tw-animate-css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
@@ -127,7 +127,7 @@
 }
 
 .dark {
-    --background: hsl(0 0% 3.9%);
+    --background: #0D1F2D;
     --foreground: hsl(0 0% 98%);
     --card: hsl(0 0% 3.9%);
     --card-foreground: hsl(0 0% 98%);

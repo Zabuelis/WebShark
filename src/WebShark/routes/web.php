@@ -6,14 +6,12 @@ use Laravel\Fortify\Features;
 
 
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
+    return Inertia::render('Home', [
         'canRegister' => Features::enabled(Features::registration()),
     ]);
 })->name('home');
 
-Route::get('test', function(){
-    return Inertia::render('test/Test');
-});
+Route::post('/file/uploadPcap', [FileController::class, 'uploadPcap'])->name('upload.pcap');
 
 Route::get('dashboard', function () {
     return Inertia::render('Dashboard');
