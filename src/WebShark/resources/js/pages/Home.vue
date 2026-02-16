@@ -1,6 +1,32 @@
 <script setup>
-    import { ref } from 'vue'
     import axios from 'axios'
+    import { ref } from 'vue'
+
+    const file = ref(null);
+
+    const fileChange = (event) =>{
+        file.value = event.target.files[0]
+    }
+
+    const uploadFile = async() => {
+        if(!file.value){
+            return
+        }
+
+        try {
+            // Form HTML data send
+            const fileSendData = new FormData();
+            fileSendData.append('pcap_file', file.value)
+
+            const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/file/uploadPcap`,
+                fileSendData
+            );
+            console.log(response.data);         
+        } catch (error){
+            console.error(error);
+        }
+
+    }
 
 </script>
 
@@ -16,7 +42,7 @@
             <div class = "flex justify-center items-center">
                 <div class = "file-upload">
                     <!-- This form action needs to be rewritten with axio and CSRF tokens, currently won't work -->
-                    <form action="/file/uploadPcap" method = "POST" enctype="multipart/form-data">
+                    <form @submit.prevent="uploadFile" enctype="multipart/form-data">
                         <div class="col-span-full py-2">
                             <label for="cover" class="block text-center text-lg font-medium ">Analyse network traffic files, visualize important data, <br> spot potential vulnerabilities or attacks in your network.</label>
                                 <div class="mt-2 flex justify-center px-6 py-6 border border-dashed border-white/25">
@@ -24,7 +50,7 @@
                                         <div class="mt-4 flex text-sm/6 text-gray-400">
                                                 <label for="file-upload" class="relative cursor-pointer rounded-md bg-transparent font-semibold text-indigo-400 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-indigo-500 hover:text-indigo-300">
                                                     <span>Upload a file</span>
-                                                    <input id="file-upload" name="pcap_file" type="file" class="sr-only" required/>
+                                                    <input id="file-upload" name="pcap_file" type="file" class="sr-only" @change="fileChange" required/>
                                                 </label>
                                             <p class="pl-1">or drag and drop</p>
                                         </div>
