@@ -27,8 +27,10 @@ class FileController extends Controller
         try {
             // Preserving the pcap/pcapng extension, because laravel does not
             $fileName = $request->file('pcap_file')->getClientOriginalName();
+
+            // Pcaps are stored inside storage/app/private/pcap directory with a name combination sessionID_originalname.pcap
             $rebuiltFileName = $sessionID . "_" . $fileName;
-            $path = $request->file('pcap_file')->storeAs('pcap', $rebuiltFileName);
+            $request->file('pcap_file')->storeAs('pcap', $rebuiltFileName);
 
             return response()->json([
                 'success' => 'File upload was successful.',

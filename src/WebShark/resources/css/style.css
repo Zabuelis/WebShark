@@ -23,11 +23,54 @@ Desert sand #E4C3AD
 
 .file-upload{
     height: 300px;
-    width: 50%;
+    width: 30%;
+
+    border-color: #9EA3B0;
 }
 
 .upload-text{
     color: #9EA3B0;
+    font-size: 12px;
+}
+
+.file-upload-btn{
+    border-color: #9EA3B0;
+    color: white;
+    background-color: #143147;
+    min-width: 7%;
+    height: 40px;
+    margin: 10px;
+}
+
+.file-upload-btn:hover{
+    border-color: #9EA3B0;
+    color: white;
+    background-color: #0D1F2D;
+    min-width: 7%;
+    height: 40px;
+    margin: 10px;
+}
+
+.file-select-btn{
+    border-color: #9EA3B0;
+    color: white;
+    background-color: #143147;
+    min-width: 10%;
+    height: 40px;
+    margin: 10px;
+}
+
+.file-select-btn:hover{
+    border-color: #9EA3B0;
+    color: white;
+    background-color: #0D1F2D;
+    min-width: 10%;
+    height: 40px;
+    margin: 10px;
+}
+
+.file-icon{
+    width: 20%;
 }
 
 .footer{
