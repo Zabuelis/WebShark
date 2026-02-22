@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use App\Jobs\AnalyzePcap;
 
 
 class FileController extends Controller
@@ -32,8 +35,15 @@ class FileController extends Controller
             $rebuiltFileName = $sessionID . "_" . $fileName;
             $request->file('pcap_file')->storeAs('pcap', $rebuiltFileName);
 
+            // Generate a unique ID for this analysis
+            $uuid = (string) Str::uuid();
+
+            // Dispatch the job to analyze the pcap file
+            AnalyzePcap::dispatch($uuid, $rebuiltFileName);
+
             return response()->json([
-                'success' => 'File upload was successful.',
+                'success' => 'File upload was successful. Analysis started.',
+                'analysis_id' => $uuid,
             ]);
         } catch (Exception $e) {
             Log::error("File save failed", [

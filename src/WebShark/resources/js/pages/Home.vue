@@ -2,6 +2,9 @@
     import axios from 'axios';
     import { ref } from 'vue';
 
+    axios.defaults.withCredentials = true;
+    axios.defaults.withXSRFToken = true;
+
     const file = ref(null);
     const successMessage = ref(null);
     const failureMessage = ref(null);
