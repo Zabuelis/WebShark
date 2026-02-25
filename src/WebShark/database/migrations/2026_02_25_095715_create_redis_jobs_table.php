@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('redis_job', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('redis_id')->unique();
             $table->string('db_path');
             $table->dateTime('expires_at', precision: 0);
             $table->string('status');

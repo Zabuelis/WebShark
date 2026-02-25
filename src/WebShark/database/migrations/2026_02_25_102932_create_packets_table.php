@@ -12,16 +12,19 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('packet', function (Blueprint $table) {
-            $table->id();
-            $table->string('src_ip');
-            $table->string('dst_ip');
-            $table->integer('src_port');
-            $table->integer('dst_port');
-            $table->string('tcp_flag');
-            $table->integer('tcp_window');
-            $table->integer('original_packet_length');
-            $table->integer('captured_packet_length');
-            $table->time('timestamp', precision: 0);
+            $table->id('packet_id');
+            $table->uuid('redis_id');
+            $table->string('src_ip')->nullable(true);
+            $table->string('dst_ip')->nullable(true);
+            $table->integer('src_port')->nullable(true);
+            $table->integer('dst_port')->nullable(true);
+            $table->string('tcp_flag')->nullable(true);
+            $table->integer('tcp_window')->nullable(true);
+            $table->integer('original_packet_length')->nullable(true);
+            $table->integer('captured_packet_length')->nullable(true);
+            $table->time('timestamp', precision: 0)->nullable(true);
+
+            $table->foreign('redis_id')->references('redis_id')->on('redis_job')->onDelete('cascade');
         });
     }
 
