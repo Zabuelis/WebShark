@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('redis_job', function (Blueprint $table) {
             $table->uuid('redis_id')->unique();
-            $table->string('db_path');
-            $table->dateTime('expires_at', precision: 0);
+            $table->string('file_path');
+            $table->dateTime('expires_at', precision: 0)->nullable(true);
             $table->string('status');
         });
     }
