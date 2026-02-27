@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use App\Http\Controllers\FileController;
+use App\Http\Middleware\EnsureRateLimiting;
 
 
 Route::get('/', function () {
@@ -12,10 +13,10 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
-Route::post('/file/uploadPcap', [FileController::class, 'uploadPcap'])->name('upload.pcap');
 
-Route::get('dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::middleware('rateLimit')->group( function(){
+    Route::post('/file/uploadPcap', [FileController::class, 'uploadPcap'])->name('upload.pcap');
+});
+
 
 require __DIR__.'/settings.php';

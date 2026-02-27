@@ -20,6 +20,7 @@ class FileController extends Controller
         ]);
 
         $sessionID = session()->getId();
+        $currentIP = request()->ip();
 
         // Laravel does not distinguish mime type pcap,pcapng and returns an error therefore, a manual check is needed
         if(!in_array($request->file('pcap_file')->getClientOriginalExtension(), ['pcap', 'pcapng'])){
@@ -28,21 +29,19 @@ class FileController extends Controller
             ], 422);
         }
 
-        if($this->isAnalysisLimitReached()){
-            return response()->json([
-                'error' => 'You have reached your limit of analyzes, please wait until: '
-            ], 422);
-        }
-
         try {
             // Preserving the pcap/pcapng extension, because laravel does not
             $fileName = $request->file('pcap_file')->getClientOriginalName();
 
             // Pcaps are stored inside storage/app/private/pcap directory with a name combination sessionID_originalname.pcap
-            $rebuiltFileName = $sessionID . "_" . $fileName;
+            $rebuiltFileName = now()->format('Y-m-d_h:i:s') . '_' . $sessionID . '_' . $fileName;
             $request->file('pcap_file')->storeAs('pcap', $rebuiltFileName);
 
             $this->handleNewJob($rebuiltFileName);
+
+            // Increment analyze_counter for the current user
+            $ipMarker = IpMarker::where('ip_address', $currentIP)->first();
+            IpMarker::where('ip_address', $currentIP)->update(['analyze_counter' => $ipMarker->analyze_counter + 1]);
 
             return response()->json([
                 'success' => 'File upload was successful.',
@@ -58,6 +57,7 @@ class FileController extends Controller
         }
     }
 
+    // Dispatch redis job and log it into db under status 'dispatching'
     private function handleNewJob($rebuiltFileName){
             $uuid = (string) Str::uuid();
             //AnalyzePcap::dispatch($uuid, $rebuiltFileName);
@@ -67,28 +67,5 @@ class FileController extends Controller
                 'file_path' => $rebuiltFileName,
                 'status' => 'dispatching'
             ]);
-    }
-
-    // Checks whether the user has analyses left. This can potentially be transformed into middleware
-    private function isAnalysisLimitReached(): bool{
-        $currentIP = request()->ip();
-        $ipMarker = IpMarker::where('ip_address', $currentIP)->first();
-
-        if(!$ipMarker){
-            IpMarker::insert([
-                'ip_address' => $currentIP,
-                'expires_at' => now()->addMinutes(15),
-                'analyze_counter' => 0
-            ]);
-            return false;
-        }
-
-        if($ipMarker->analyze_counter > 15){
-            return true;
-        } else {
-            IpMarker::where('ip_address', $currentIP)->update(['analyze_counter' => $ipMarker->analyze_counter + 1]);
-            return false;
-        }
-
     }
 }
