@@ -1,41 +1,35 @@
 import sys
-import json
-from scapy.all import *
+from scapy.all import PcapReader, IP, TCP, UDP, ICMP
 
-def analyze_pcap(file_path):
-    try:
-        # Read the pcap file
-        packets = rdpcap(file_path)
-        result = []
+file_path = sys.argv[1]
 
-        # Analyze the first 100 packets
-        for i, pkt in enumerate(packets[:100]):
-            if IP in pkt:
-                if DNS in pkt:
-                    proto = "DNS"
-                elif TCP in pkt:
-                    proto = "TCP"
-                elif UDP in pkt:
-                    proto = "UDP"
-                elif ICMP in pkt:
-                    proto = "ICMP"
-                else:
-                    proto = "Unknown"
+with PcapReader(file_path) as reader:
+    for index, pkt in enumerate(reader):
+        if index >= 10:
+            break
 
-                result.append({
-                    "id": i,
-                    "protocol": proto,
-                    "src": pkt[IP].src,
-                    "dst": pkt[IP].dst,
-                    "length": len(pkt),
-                    "info": pkt.summary()
-                })
+        if IP not in pkt:
+            print(f"Packet #{index} No IP layer found, skipping")
+            print()
+            continue
 
-        return json.dumps(result)
-    except Exception as e:
-        return json.dumps({"error": str(e)})
+        # which L4 protocol?
+        if TCP in pkt:
+            proto = "TCP"
+            ports = f"{pkt[TCP].sport} to {pkt[TCP].dport}"
+        elif UDP in pkt:
+            proto = "UDP"
+            ports = f"{pkt[UDP].sport} to {pkt[UDP].dport}"
+        elif ICMP in pkt:
+            proto = "ICMP"
+            ports = f"type={pkt[ICMP].type} code={pkt[ICMP].code}"
+        else:
+            proto = "Unknown"
+            ports = "—"
 
-if __name__ == "__main__":
-    # First argument is the path to the pcap file
-    path = sys.argv[1]
-    print(analyze_pcap(path))
+        print(f"Packet #{index}")
+        print(f"  {pkt[IP].src} to {pkt[IP].dst}")
+        print(f"  Protocol: {proto}")
+        print(f"  Ports:    {ports}")
+        print(f"  Size:     {len(pkt)} bytes")
+        print()
