@@ -31,7 +31,7 @@ class EnsureRateLimiting
         if($ipMarker->analyze_counter >= 10){
             $timeDifference = (int)now()->diffInMinutes($ipMarker->expires_at, false);
             return response()->json([
-                'error' => 'You have reached your limit of analyzes, please wait: ' . $timeDifference . ' minutes.'
+                'error' => 'You have reached your limit of analyses, please wait: ' . $timeDifference . ' minutes.'
             ], 422);
         }
 
