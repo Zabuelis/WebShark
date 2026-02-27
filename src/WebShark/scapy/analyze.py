@@ -1,4 +1,5 @@
 import sys
+import json
 from scapy.all import PcapReader, IP, TCP, UDP, ICMP
 
 file_path = sys.argv[1]
@@ -9,27 +10,48 @@ with PcapReader(file_path) as reader:
             break
 
         if IP not in pkt:
-            print(f"Packet #{index} No IP layer found, skipping")
-            print()
             continue
 
-        # which L4 protocol?
-        if TCP in pkt:
-            proto = "TCP"
-            ports = f"{pkt[TCP].sport} to {pkt[TCP].dport}"
-        elif UDP in pkt:
-            proto = "UDP"
-            ports = f"{pkt[UDP].sport} to {pkt[UDP].dport}"
-        elif ICMP in pkt:
-            proto = "ICMP"
-            ports = f"type={pkt[ICMP].type} code={pkt[ICMP].code}"
-        else:
-            proto = "Unknown"
-            ports = "—"
+        # build L3 data
+        l3 = {
+            "protocol": "IPv4",
+            "src": pkt[IP].src,
+            "dst": pkt[IP].dst,
+        }
 
-        print(f"Packet #{index}")
-        print(f"  {pkt[IP].src} to {pkt[IP].dst}")
-        print(f"  Protocol: {proto}")
-        print(f"  Ports:    {ports}")
-        print(f"  Size:     {len(pkt)} bytes")
-        print()
+        # build L4 data
+        # we set l4 to None by default
+        # if the packet has something in l4 - only then we overwrite it
+        l4 = None
+
+        if TCP in pkt:
+            l4 = {
+                "protocol": "TCP",
+                "src_port": pkt[TCP].sport,
+                "dst_port": pkt[TCP].dport,
+            }
+        elif UDP in pkt:
+            l4 = {
+                "protocol": "UDP",
+                "src_port": pkt[UDP].sport,
+                "dst_port": pkt[UDP].dport,
+            }
+        elif ICMP in pkt:
+            l4 = {
+                "protocol": "ICMP",
+                "type": pkt[ICMP].type,
+                "code": pkt[ICMP].code,
+            }
+
+        # build the full packet
+        packet_data = {
+            "id": index,
+            "length": len(pkt),
+            "layers": {
+                "L3": l3,
+                "L4": l4,
+            },
+        }
+
+        # return one packet JSON instead of big JSON of all packets
+        print(json.dumps(packet_data))
