@@ -12,9 +12,8 @@ class AnalyzePcap implements ShouldQueue
 {
     use Queueable;
 
-    /**
-     * Create a new job instance.
-     */
+    public int $timeout = 600;
+
     public function __construct(public string $uuid, public string $fileName)
     {
         //
@@ -31,12 +30,46 @@ class AnalyzePcap implements ShouldQueue
         // env() function to get the Python path, the second parameter is a fallback
         $pythonPath = env('PYTHON_BINARY', 'python3');
 
-        $result = Process::run("$pythonPath $scriptPath $filePath");
+        $result = Process::timeout($this->timeout)
+            ->run("$pythonPath $scriptPath $filePath");
 
-        if ($result->successful()) {
-            Cache::put('analysis_' . $this->uuid, json_decode($result->output()), 600);
-        } else {
-            Log::error("Python error: " . $result->errorOutput());
+        if (!$result->successful()) {
+            Log::error("Python error for {$this->uuid}: " . $result->errorOutput());
+            Cache::put('analysis_' . $this->uuid, [
+                'status' => 'failed',
+                'error' => $result->errorOutput(),
+            ], 600);
+            return;
         }
+
+        // Python outputs one JSON object per line
+        // We split by newline and decode each line separately
+        $lines = explode("\n", trim($result->output()));
+        $packets = [];
+
+        foreach ($lines as $line) {
+            // skip empty lines
+            if (empty($line)) {
+                continue;
+            }
+
+            // skip error lines from Python
+            if (str_starts_with($line, 'ERROR:')) {
+                Log::error("Python: " . $line);
+                continue;
+            }
+
+            $decoded = json_decode($line, true);
+            // returns null if the line isn't valid JSON
+            if ($decoded !== null) {
+                $packets[] = $decoded;
+            }
+        }
+
+        Cache::put('analysis_' . $this->uuid, [
+            'status' => 'done',
+            'total_packets' => count($packets),
+            'packets' => $packets,
+        ], 600);
     }
 }
