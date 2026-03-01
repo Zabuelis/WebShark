@@ -37,7 +37,9 @@
             successMessage.value = response.data.success;
             failureMessage.value = null;
 
-            
+            // redirect to the status/results page
+            window.location.href = response.data.redirect_url;
+
         } catch (error){
             console.log(error);
             failureMessage.value = "File upload failed";
@@ -55,7 +57,7 @@
          <div v-if="failureMessage" class="bg-red-100 border border-red-400 text-center text-red-700 px-4 py-3 rounded relative" role="alert">
             <strong class="font-bold">{{ failureMessage }}</strong>
         </div>
-        <div v-if="successMessage" class = "bg-green-100 border border-green-400 text-center text-green-700 px-4 py-3 rounded relative" reole="allert">
+        <div v-if="successMessage" class = "bg-green-100 border border-green-400 text-center text-green-700 px-4 py-3 rounded relative" role="alert">
             <strong class="font-bold">{{ successMessage }}</strong>
         </div>
 

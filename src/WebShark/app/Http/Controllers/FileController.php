@@ -6,6 +6,7 @@ use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use App\Jobs\AnalyzePcap;
 
@@ -41,9 +42,14 @@ class FileController extends Controller
             // Dispatch the job to analyze the pcap file
             AnalyzePcap::dispatch($uuid, $rebuiltFileName);
 
+            Cache::put('analysis_' . $uuid, [
+                'status' => 'processing',
+            ], 600);
+
             return response()->json([
                 'success' => 'File upload was successful. Analysis started.',
                 'analysis_id' => $uuid,
+                'redirect_url' => '/pcap/status/' . $uuid,
             ]);
         } catch (Exception $e) {
             Log::error("File save failed", [

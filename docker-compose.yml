@@ -14,6 +14,28 @@ services:
     networks:
       - webshark-net
 
+  # The Queue Worker (Processes the PCAP jobs in background)
+  queue-worker:
+    build:
+      context: ./src/WebShark
+      dockerfile: Dockerfile
+    container_name: webshark-queue
+    restart: unless-stopped
+    user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
+    working_dir: /var/www
+    depends_on:
+      - redis
+      - db
+      - app
+    volumes:
+      - ./src/WebShark:/var/www
+    env_file:
+      - ./src/WebShark/.env
+    command: php artisan queue:work --tries=3
+    networks:
+      - webshark-net
+
+  # Nginx Web Server
   nginx:
     image: nginx:alpine
     container_name: webshark-nginx
@@ -26,6 +48,7 @@ services:
     networks:
       - webshark-net
 
+  # PostgreSQL Database
   db:
     image: postgres:15-alpine
     container_name: webshark-db
@@ -43,28 +66,30 @@ services:
     networks:
       - webshark-net
 
+  # Redis Cache/Queue
   redis:
     image: redis:alpine
     container_name: webshark-redis
     networks:
       - webshark-net
 
+  # Node.js (Vite/Vue)
   node:
-      build:
-        context: ./src/WebShark
-        dockerfile: node.Dockerfile
-      container_name: webshark-node
-      user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
-      working_dir: /var/www
-      env_file:
-        - ./src/WebShark/.env
-      volumes:
-        - ./src/WebShark:/var/www
-      ports:
-        - "5173:5173"
-      command: npm run dev
-      networks:
-        - webshark-net
+    build:
+      context: ./src/WebShark
+      dockerfile: node.Dockerfile
+    container_name: webshark-node
+    user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
+    working_dir: /var/www
+    env_file:
+      - ./src/WebShark/.env
+    volumes:
+      - ./src/WebShark:/var/www
+    ports:
+      - "5173:5173"
+    command: npm run dev
+    networks:
+      - webshark-net
 
 networks:
   webshark-net:

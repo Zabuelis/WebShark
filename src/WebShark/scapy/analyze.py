@@ -6,8 +6,6 @@ file_path = sys.argv[1]
 
 with PcapReader(file_path) as reader:
     for index, pkt in enumerate(reader):
-        if index >= 10:
-            break
 
         if IP not in pkt:
             continue

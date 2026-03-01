@@ -30,10 +30,5 @@ http://localhost:8000/
 
 ### 5. Stopping
 ```bash
-docker compose stop # (keeps your data)
-# or
-docker compose down # (cleans up containers)
+docker compose down
 ```
-
-### To start processing the PCAP analysis jobs:
-docker exec -it webshark-app php artisan queue:work
