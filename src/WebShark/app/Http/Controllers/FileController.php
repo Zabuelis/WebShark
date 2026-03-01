@@ -4,7 +4,11 @@ namespace App\Http\Controllers;
 
 use Exception;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use App\Models\RedisJob;
+use App\Models\IpMarker;
+use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 
 class FileController extends Controller
@@ -16,6 +20,7 @@ class FileController extends Controller
         ]);
 
         $sessionID = session()->getId();
+        $currentIP = request()->ip();
 
         // Laravel does not distinguish mime type pcap,pcapng and returns an error therefore, a manual check is needed
         if(!in_array($request->file('pcap_file')->getClientOriginalExtension(), ['pcap', 'pcapng'])){
@@ -29,8 +34,14 @@ class FileController extends Controller
             $fileName = $request->file('pcap_file')->getClientOriginalName();
 
             // Pcaps are stored inside storage/app/private/pcap directory with a name combination sessionID_originalname.pcap
-            $rebuiltFileName = $sessionID . "_" . $fileName;
+            $rebuiltFileName = now()->format('Y-m-d_h:i:s') . '_' . $sessionID . '_' . $fileName;
             $request->file('pcap_file')->storeAs('pcap', $rebuiltFileName);
+
+            $this->handleNewJob($rebuiltFileName);
+
+            // Increment analyze_counter for the current user
+            $ipMarker = IpMarker::where('ip_address', $currentIP)->first();
+            IpMarker::where('ip_address', $currentIP)->update(['analyze_counter' => $ipMarker->analyze_counter + 1]);
 
             return response()->json([
                 'success' => 'File upload was successful.',
@@ -44,5 +55,17 @@ class FileController extends Controller
                 'error' => 'File upload failed'
             ], 422);
         }
+    }
+
+    // Dispatch redis job and log it into db under status 'dispatching'
+    private function handleNewJob($rebuiltFileName){
+            $uuid = (string) Str::uuid();
+            //AnalyzePcap::dispatch($uuid, $rebuiltFileName);
+
+            RedisJob::insert([
+                'redis_id' => $uuid,
+                'file_path' => $rebuiltFileName,
+                'status' => 'dispatching'
+            ]);
     }
 }
