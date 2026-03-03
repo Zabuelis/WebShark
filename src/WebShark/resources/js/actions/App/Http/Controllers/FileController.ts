@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\FileController::uploadPcap
-* @see app/Http/Controllers/FileController.php:16
+* @see app/Http/Controllers/FileController.php:18
 * @route '/file/uploadPcap'
 */
 export const uploadPcap = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -16,7 +16,7 @@ uploadPcap.definition = {
 
 /**
 * @see \App\Http\Controllers\FileController::uploadPcap
-* @see app/Http/Controllers/FileController.php:16
+* @see app/Http/Controllers/FileController.php:18
 * @route '/file/uploadPcap'
 */
 uploadPcap.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ uploadPcap.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\FileController::uploadPcap
-* @see app/Http/Controllers/FileController.php:16
+* @see app/Http/Controllers/FileController.php:18
 * @route '/file/uploadPcap'
 */
 uploadPcap.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -35,7 +35,7 @@ uploadPcap.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\FileController::uploadPcap
-* @see app/Http/Controllers/FileController.php:16
+* @see app/Http/Controllers/FileController.php:18
 * @route '/file/uploadPcap'
 */
 const uploadPcapForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -45,7 +45,7 @@ const uploadPcapForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'
 
 /**
 * @see \App\Http\Controllers\FileController::uploadPcap
-* @see app/Http/Controllers/FileController.php:16
+* @see app/Http/Controllers/FileController.php:18
 * @route '/file/uploadPcap'
 */
 uploadPcapForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

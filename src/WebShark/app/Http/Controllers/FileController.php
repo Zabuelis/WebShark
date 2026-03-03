@@ -94,15 +94,12 @@ class FileController extends Controller
     {
         $uuid = (string) Str::uuid();
 
-        // Dispatching the job (uncommented from origin/dev logic)
         AnalyzePcap::dispatch($uuid, $rebuiltFileName);
 
         RedisJob::insert([
             'redis_id' => $uuid,
             'file_path' => $rebuiltFileName,
             'status' => 'dispatching',
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
 
         return $uuid;
