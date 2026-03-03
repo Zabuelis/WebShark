@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use App\Models\IpMarker;
+use Illuminate\Support\Carbon;
 
 class EnsureRateLimiting
 {
@@ -29,10 +30,8 @@ class EnsureRateLimiting
         }
 
         if($ipMarker->analyze_counter >= 10){
-            $timeDifference = (int)now()->diffInMinutes($ipMarker->expires_at, false);
-            return response()->json([
-                'error' => 'You have reached your limit of analyses, please wait: ' . $timeDifference . ' minutes.'
-            ], 422);
+            $timeDifference = Carbon::parse($ipMarker->expires_at)->diffForHumans();
+            return redirect()->back()->with('error', 'You have reached your limit of analyses, please wait: ' . $timeDifference . '.');
         }
 
         return $next($request);

@@ -1,64 +1,47 @@
 <script setup>
-    import axios from 'axios';
-    import { ref } from 'vue';
+    import { ref } from 'vue'
+    import { Head, useForm, usePage } from '@inertiajs/vue3'
 
-    axios.defaults.withCredentials = true;
-    axios.defaults.withXSRFToken = true;
+    // Information related to the page that comes from inertia (flash messages, csfr_token, etc.)
+    const pageMessages = usePage()
 
+    // Reacts to changes once the page is loaded
     const file = ref(null);
-    const successMessage = ref(null);
-    const failureMessage = ref(null);
+
+    const form = useForm({
+        'pcap_file' : null
+    })
 
     // Track file upload 
     function fileChange(event){
-        file.value = event.target.files[0];
-    };
+        file.value = event.target.files[0]
+        form.pcap_file = file
+    }
+
+    function submit(){
+        form.post('/file/uploadPcap', {
+            _token : pageMessages.props.csfr_token,
+            forceFormData: true,    // Forms including files should be converted to FormData objects
+        })
+    }
 
     // Track reset button event
     function resetFile(){
-        file.value = null;
+        file.value = null
+        form.pcap_file = null
     };
-
-    // Track file.value change
-    async function uploadFile(){
-        if(!file.value){
-            return;
-        }
-
-        try {
-            // HTML form build
-            const fileSendData = new FormData();
-            fileSendData.append('pcap_file', file.value);
-
-            const response = await axios.post(`${import.meta.env.VITE_APPLICATION_BASE_URL}/file/uploadPcap`,
-                fileSendData
-            );
-
-            successMessage.value = response.data.success;
-            failureMessage.value = null;
-
-            // redirect to the status/results page
-            window.location.href = response.data.redirect_url;
-
-        } catch (error){
-            console.log(error);
-            failureMessage.value = error.response.data.error;
-            successMessage.value = null;
-        }
-        // Reset file value after action
-        file.value = null;
-    }
 
 </script>
 
 <template>
+    <Head title="Home" />
     <div class = "flex-auto">
         <!-- Feedback messages -->
-         <div v-if="failureMessage" class="bg-red-100 border border-red-400 text-center text-red-700 px-4 py-3 rounded relative" role="alert">
-            <strong class="font-bold">{{ failureMessage }}</strong>
+        <div v-if="pageMessages.props.flash.error" class="bg-red-100 border border-red-400 text-center text-red-700 px-4 py-3 rounded relative" role="alert">
+            <strong class="font-bold">{{ pageMessages.props.flash.error }}</strong>
         </div>
-        <div v-if="successMessage" class = "bg-green-100 border border-green-400 text-center text-green-700 px-4 py-3 rounded relative" role="alert">
-            <strong class="font-bold">{{ successMessage }}</strong>
+        <div v-if="pageMessages.props.flash.success" class = "bg-green-100 border border-green-400 text-center text-green-700 px-4 py-3 rounded relative" role="alert">
+            <strong class="font-bold">{{ pageMessages.props.flash.success }}</strong>
         </div>
 
         <div class = "spacer"></div>
@@ -76,11 +59,11 @@
                     <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0M9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1M6.354 9.854a.5.5 0 0 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 8.707V12.5a.5.5 0 0 1-1 0V8.707z"/>
                 </svg>
             </div>
-            <form @submit.prevent="uploadFile" enctype="multipart/form-data">
+            <form @submit.prevent="submit" enctype="multipart/form-data">
                 <div class="flex justify-center items-center">
                     <label v-if="!file" class="file-select-btn cursor-pointer text-center border rounded-md px-4 py-2">
                         Upload file
-                        <input @change="fileChange" type="file" class="hidden"/>
+                        <input @change="fileChange" type="file" accept=".pcap, .pcapng" class="hidden"/>
                     </label>
                 </div>
                 <div v-if="!file" class="upload-text text-center py-5">

@@ -25,19 +25,9 @@ class FileController extends Controller
         $sessionID = session()->getId();
         $currentIP = $request->ip();
 
-        // Manual check for pcap extensions because Laravel mime detection can be mid
-        if (
-            !in_array($request->file('pcap_file')->getClientOriginalExtension(), [
-                'pcap',
-                'pcapng',
-            ])
-        ) {
-            return response()->json(
-                [
-                    'error' => 'File upload failed, incorrect file extension',
-                ],
-                422
-            );
+        // Laravel does not distinguish mime type pcap,pcapng and returns an error therefore, a manual check is needed
+        if(!in_array($request->file('pcap_file')->getClientOriginalExtension(), ['pcap', 'pcapng'])){
+            return redirect()->back()->with('error', 'File upload failed, incorrect file extension');
         }
 
         try {
@@ -68,22 +58,13 @@ class FileController extends Controller
                 600
             );
 
-            return response()->json([
-                'success' => 'File upload was successful. Analysis started.',
-                'analysis_id' => $uuid,
-                'redirect_url' => '/pcap/status/' . $uuid,
-            ]);
+            return redirect('/pcap/status/' . $uuid)->with('success', 'File upload was successful.');
         } catch (Exception $e) {
             Log::error('File save failed', [
                 'message' => $e->getMessage(),
                 'exception' => $e,
             ]);
-            return response()->json(
-                [
-                    'error' => 'File upload failed',
-                ],
-                422
-            );
+            return redirect()->back()->with('error', $e->getMessage());
         }
     }
 
