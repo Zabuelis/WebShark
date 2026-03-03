@@ -81,7 +81,6 @@ services:
     container_name: webshark-node
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
     working_dir: /var/www
-    # Add this section here:
     environment:
       - npm_config_cache=/tmp/.npm-cache
     env_file:

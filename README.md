@@ -18,9 +18,7 @@ sudo docker compose --env-file src/WebShark/.env up -d --build
 ```bash
 docker compose --env-file src/WebShark/.env run --rm node npm install --legacy-peer-deps
 
-sudo docker exec -it webshark-node npm install --legacy-peer-deps
-
-docker exec -it webshark-node npm install --force
+docker exec -it webshark-node npm install --legacy-peer-deps
 ```
 
 ### 3. Install dependencies (First time only)
