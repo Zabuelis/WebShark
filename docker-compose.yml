@@ -81,6 +81,8 @@ services:
     container_name: webshark-node
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
     working_dir: /var/www
+    environment:
+      - npm_config_cache=/tmp/.npm-cache
     env_file:
       - ./src/WebShark/.env
     volumes:
@@ -90,7 +92,6 @@ services:
     command: npm run dev
     networks:
       - webshark-net
-
 networks:
   webshark-net:
     driver: bridge
