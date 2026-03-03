@@ -7,11 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Models\RedisJob;
 use App\Models\IpMarker;
-use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
 use App\Jobs\AnalyzePcap;
 
 
