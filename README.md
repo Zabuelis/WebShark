@@ -16,7 +16,8 @@ sudo docker compose --env-file src/WebShark/.env up -d --build
 ### 3. Install dependencies (First time only)
 ```bash
 sudo docker exec -it webshark-app composer install
-# sudo docker compose --env-file src/WebShark/.env run --rm node npm install --legacy-peer-deps
+sudo docker compose --env-file src/WebShark/.env run --rm node npm install --legacy-peer-deps
+sudo docker compose --env-file src/WebShark/.env up -d --build
 sudo docker exec -it webshark-node npm install --legacy-peer-deps
 ```
 
@@ -32,12 +33,18 @@ sudo docker exec -it webshark-app php artisan migrate
 ssh -L 8000:localhost:8000 -L 5173:localhost:5173 <OpenNebula CONNECT_INFO1 (without the ssh)>
 ```
 
-### 6. Test it
+### 6. Restart it (First time only)
+```bash
+sudo docker compose down
+sudo docker compose --env-file src/WebShark/.env up -d --build
+```
+
+### 7. Test it
 ```bash
 http://localhost:8000/
 ```
 
-### 7. Stopping
+### 8. Stopping
 ```bash
 sudo docker compose down
 ```
