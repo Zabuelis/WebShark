@@ -40,4 +40,5 @@ http://localhost:8000/
 ### 7. Stopping
 ```bash
 sudo docker compose down
+
 ```
