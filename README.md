@@ -10,13 +10,13 @@ cp src/WebShark/.env.example src/WebShark/.env
 ### 2. Spin docker up
 Run this from the root folder. We use the `--env-file` flag so Docker can find your config:
 ```bash
-sudo docker compose --env-file src/WebShark/.env run --rm node npm install
 sudo docker compose --env-file src/WebShark/.env up -d --build
 ```
 
 ### 3. Install dependencies (First time only)
 ```bash
 sudo docker exec -it webshark-app composer install
+sudo docker compose --env-file src/WebShark/.env run --rm node npm install
 sudo docker exec -it webshark-node npm install
 ```
 
