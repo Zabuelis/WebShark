@@ -42,7 +42,7 @@
 
         } catch (error){
             console.log(error);
-            failureMessage.value = "File upload failed";
+            failureMessage.value = error.response.data.error;
             successMessage.value = null;
         }
         // Reset file value after action
