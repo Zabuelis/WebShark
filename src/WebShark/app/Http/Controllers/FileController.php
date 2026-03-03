@@ -48,7 +48,7 @@ class FileController extends Controller
                 now()->format('Y-m-d_h:i:s') . '_' . $sessionID . '_' . $fileName;
             $request->file('pcap_file')->storeAs('pcap', $rebuiltFileName);
 
-            // 1. Dispatch job & log to DB (from origin/dev)
+            // 1. Dispatch job & log to DB
             $uuid = $this->handleNewJob($rebuiltFileName);
 
             // 2. Increment analyze_counter for the current user

@@ -13,7 +13,7 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
-// Upload route with rate limiting from origin/dev
+// Upload route with rate limiting
 Route::middleware('rateLimit')->group(function () {
     Route::post('/file/uploadPcap', [
         FileController::class,
@@ -21,7 +21,7 @@ Route::middleware('rateLimit')->group(function () {
     ])->name('upload.pcap');
 });
 
-// PCAP Status polling logic from HEAD
+// PCAP Status polling logic
 Route::get('/pcap/status/{uuid}', function ($uuid) {
     $data = Cache::get('analysis_' . $uuid);
 
