@@ -1,0 +1,204 @@
+import sys
+import json
+from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP, DNS
+
+# So, in our case we have layers: L3, L4 and L7. Each layer has its own registry.
+# The registry is a dict that maps the protocol name to the function that can handle it.
+# A dict is a data structure that maps keys to values (like hashmap in other languages).
+# in our case dict that maps: layer -> protocol name -> function.
+
+handlers = {
+    "L3": {},
+    "L4": {},
+    "L7": {},
+}
+
+# Add a handler function to the registry
+def register(layer, name, func):
+    handlers[layer][name] = func
+
+# L3 handlers
+def handle_ipv4(pkt):
+    if IP not in pkt:
+        return None
+    ip = pkt[IP]
+    return {
+        "protocol": "IPv4",
+        "src": ip.src,
+        "dst": ip.dst,
+        "ttl": ip.ttl,
+        "length": ip.len,
+        "protocol_num": ip.proto,
+    }
+
+def handle_ipv6(pkt):
+    if IPv6 not in pkt:
+        return None
+    ip6 = pkt[IPv6]
+    return {
+        "protocol": "IPv6",
+        "src": ip6.src,
+        "dst": ip6.dst,
+        "hop_limit": ip6.hlim,
+        "payload_len": ip6.plen,
+        "next_header": ip6.nh,
+    }
+
+register("L3", "IPv4", handle_ipv4)
+register("L3", "IPv6", handle_ipv6)
+
+# L4 handlers
+def handle_tcp(pkt):
+    if TCP not in pkt:
+        return None
+    tcp = pkt[TCP]
+    return {
+        "protocol": "TCP",
+        "src_port": tcp.sport,
+        "dst_port": tcp.dport,
+        "seq": tcp.seq,
+        "ack": tcp.ack,
+        "flags": str(tcp.flags),
+        "window": tcp.window,
+    }
+
+def handle_udp(pkt):
+    if UDP not in pkt:
+        return None
+    udp = pkt[UDP]
+    return {
+        "protocol": "UDP",
+        "src_port": udp.sport,
+        "dst_port": udp.dport,
+        "length": udp.len,
+    }
+
+def handle_icmp(pkt):
+    if ICMP not in pkt:
+        return None
+    icmp = pkt[ICMP]
+    return {
+        "protocol": "ICMP",
+        "type": icmp.type,
+        "code": icmp.code,
+    }
+
+register("L4", "TCP", handle_tcp)
+register("L4", "UDP", handle_udp)
+register("L4", "ICMP", handle_icmp)
+
+# L7 handlers
+def handle_dns(pkt):
+    if DNS not in pkt:
+        return None
+    dns = pkt[DNS]
+
+    query = None
+    if dns.qd:
+        # dns.qd.qname = domain name in raw bytes
+        # errors="replace" = bad bytes will be replaced with a placeholder character
+        query = dns.qd.qname.decode(errors="replace") 
+
+    return {
+        "protocol": "DNS",
+        "id": dns.id,
+        "qr": dns.qr, # 0 = question, 1 = answer
+        "qd_count": dns.qdcount,
+        "an_count": dns.ancount,
+        "query": query,
+    }
+
+register("L7", "DNS", handle_dns)
+
+# Hex dump fallback for unknown protocols
+def get_hex_dump(pkt):
+    try:
+        raw_bytes = raw(pkt) # f"{byte:02x}" formats each byte as a 2-digit hex number. 255 -> ff, 0 -> 00, 16 -> 10
+        return " ".join(f"{byte:02x}" for byte in raw_bytes)
+    except Exception:
+        return None
+
+# Identify which protocol a packet uses by looking at its layers
+def identify_l3(pkt):
+    if IP in pkt:
+        return "IPv4"
+    if IPv6 in pkt:
+        return "IPv6"
+    return None
+
+def identify_l4(pkt):
+    if TCP in pkt:
+        return "TCP"
+    if UDP in pkt:
+        return "UDP"
+    if ICMP in pkt:
+        return "ICMP"
+    return None
+
+def identify_l7(pkt):
+    if DNS in pkt:
+        return "DNS"
+    # ToDo: Add more L7 protocols (HTTP, TLS, ...)
+    # if HTTP in pkt: return "HTTP" (Scapy has no HTTP layer by default)
+    return None
+
+# Validate PCAP
+PCAP_MAGIC = [
+    b"\xd4\xc3\xb2\xa1",  # pcap little-endian
+    b"\xa1\xb2\xc3\xd4",  # pcap big-endian
+    b"\x0a\x0d\x0d\x0a",  # pcapng
+]
+
+def validate_pcap(file_path):
+    try:
+        with open(file_path, "rb") as f: # "rb" = read binary mode
+            magic = f.read(4)
+        return magic in PCAP_MAGIC
+
+    except Exception:
+        return False
+
+# Main function
+def analyze_packet(pkt, index):
+    result = {
+        "id": index,
+        "length": len(pkt),
+        "layers": {
+            "L3": None,
+            "L4": None,
+            "L7": None,
+        },
+        "hex_dump": get_hex_dump(pkt),
+    }
+
+    # L3
+    l3_name = identify_l3(pkt)
+    if l3_name and l3_name in handlers["L3"]:
+        result["layers"]["L3"] = handlers["L3"][l3_name](pkt)
+
+    # L4
+    l4_name = identify_l4(pkt)
+    if l4_name and l4_name in handlers["L4"]:
+        result["layers"]["L4"] = handlers["L4"][l4_name](pkt)
+
+    # L7
+    l7_name = identify_l7(pkt)
+    if l7_name and l7_name in handlers["L7"]:
+        result["layers"]["L7"] = handlers["L7"][l7_name](pkt)
+
+    return result
+
+# Entry point
+file_path = sys.argv[1]
+
+if not validate_pcap(file_path):
+    print(
+        "ERROR:"
+        + json.dumps({"error": "Not a valid PCAP file"})
+    )
+    sys.exit(1)
+
+with PcapReader(file_path) as reader:
+    for index, pkt in enumerate(reader):
+        result = analyze_packet(pkt, index)
+        print(json.dumps(result))
