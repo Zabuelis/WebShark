@@ -9,6 +9,8 @@ variables:
 
 before_script:
   - cp src/WebShark/.env.example $ENV_FILE
+  - sed -i "s/WWWUSER=1000/WWWUSER=$(id -u)/" $ENV_FILE
+  - sed -i "s/WWWGROUP=1000/WWWGROUP=$(id -g)/" $ENV_FILE
 
 build_images:
   stage: build
@@ -23,8 +25,13 @@ run_tests:
   stage: test
   script:
     - $COMPOSE_CMD up -d
+    - sleep 10
+
+    - docker exec webshark-app chmod -R 775 storage bootstrap/cache
+
     - docker exec webshark-app composer install --no-interaction --prefer-dist
     - $COMPOSE_CMD run --rm node npm install --legacy-peer-deps
+
     - docker exec webshark-app php artisan key:generate
     - docker exec webshark-app php artisan migrate --force
     - docker exec webshark-app php artisan test
@@ -37,9 +44,11 @@ deploy_to_production:
   stage: deploy
   environment: production
   script:
-    - echo "Patching .env for production with port 9401..."
+    - echo "Patching .env for production..."
+
     - cp src/WebShark/.env.example $ENV_FILE
-    
+    - sed -i "s/WWWUSER=1000/WWWUSER=$(id -u)/" $ENV_FILE
+    - sed -i "s/WWWGROUP=1000/WWWGROUP=$(id -g)/" $ENV_FILE
     - sed -i "s|^APP_URL=.*|APP_URL=http://193.219.91.104:9401|g" $ENV_FILE
     - sed -i "s|^VITE_APPLICATION_BASE_URL=.*|VITE_APPLICATION_BASE_URL=http://193.219.91.104:9401|g" $ENV_FILE
     
@@ -51,6 +60,7 @@ deploy_to_production:
     - $COMPOSE_CMD run --rm node npm run build
     
     - docker exec webshark-app composer install --no-interaction --optimize-autoloader --no-dev
+    - docker exec webshark-app chmod -R 775 storage bootstrap/cache
     - docker exec webshark-app php artisan key:generate --force
     - docker exec webshark-app php artisan storage:link || echo "Already linked"
     - docker exec webshark-app php artisan migrate --force
