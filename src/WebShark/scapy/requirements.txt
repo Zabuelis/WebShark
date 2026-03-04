@@ -1,0 +1,2 @@
+scapy
+psycopg2-binary
