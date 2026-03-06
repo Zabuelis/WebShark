@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureRateLimiting;
+use App\Http\Middleware\EnsureAnalysisExists;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -25,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'rateLimit' => EnsureRateLimiting::class,
+            'analysis.exists' => EnsureAnalysisExists::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
