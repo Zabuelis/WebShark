@@ -1,8 +1,7 @@
 <?php
 
 use App\Http\Controllers\FileController;
-use App\Http\Middleware\EnsureRateLimiting;
-use Illuminate\Support\Facades\Cache;
+use App\Http\Controllers\PcapController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -21,31 +20,9 @@ Route::middleware('rateLimit')->group(function () {
     ])->name('upload.pcap');
 });
 
-// PCAP Status polling logic
-Route::get('/pcap/status/{uuid}', function ($uuid) {
-    $data = Cache::get('analysis_' . $uuid);
-
-    // no cache entry means this UUID does not exist
-    if ($data === null) {
-        return response()->json(
-            [
-                'status' => 'not_found',
-                'message' => 'No analysis found for this ID.',
-            ],
-            404
-        );
-    }
-
-    // job exists but hasn't finished yet
-    if ($data['status'] === 'processing') {
-        return response()->json([
-            'status' => 'processing',
-            'message' => 'Still analyzing, try refreshing in a few seconds.',
-        ]);
-    }
-
-    return response()->json($data);
-})->name('pcap.status');
+Route::get('/pcap/status/{uuid}', [PcapController::class, 'status'])
+    ->middleware('analysis.exists')
+    ->name('pcap.status');
 
 Route::get('dashboard', function () {
     return Inertia::render('Dashboard');

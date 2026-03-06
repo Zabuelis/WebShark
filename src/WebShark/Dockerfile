@@ -37,6 +37,13 @@ WORKDIR /var/www
 COPY ./scapy/requirements.txt ./scapy_reqs.txt
 RUN pip3 install --no-cache-dir -r ./scapy_reqs.txt --break-system-packages
 
-# Increase upload limits (10mb)
+# Increase PHP memory limit
+RUN echo "memory_limit=1G" > /usr/local/etc/php/conf.d/memory-limit.ini
+
+# Increase upload limits
 RUN echo "upload_max_filesize=100M" > /usr/local/etc/php/conf.d/uploads.ini \
     && echo "post_max_size=100M" >> /usr/local/etc/php/conf.d/uploads.ini
+
+# Increase script execution time
+RUN echo "max_execution_time=600" > /usr/local/etc/php/conf.d/execution.ini \
+    && echo "max_input_time=600" >> /usr/local/etc/php/conf.d/execution.ini

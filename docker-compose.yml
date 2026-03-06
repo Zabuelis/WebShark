@@ -31,7 +31,7 @@ services:
       - ./src/WebShark:/var/www
     env_file:
       - ./src/WebShark/.env
-    command: php artisan queue:work --tries=3
+    command: php artisan queue:work --tries=3 --timeout=600 --memory=1024
     networks:
       - webshark-net
 
