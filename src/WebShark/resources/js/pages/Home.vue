@@ -20,14 +20,18 @@
     }
 
     // Track file upload 
-    function fileChange(event){
+   function fileChange(event){
         if (event.dataTransfer != null){
-            file.value = event.dataTransfer.files[0]
+            const fileExtension = event.dataTransfer.files[0].name.split('.').pop().toLowerCase()
+            if(fileExtension === 'pcap' || fileExtension === 'pcapng'){
+                file.value = event.dataTransfer.files[0]
+                form.pcap_file = file
+            }
             active.value = false
         } else {
             file.value = event.target.files[0]
+            form.pcap_file = file
         }
-        form.pcap_file = file
     }
 
     function submit(){
