@@ -1,76 +1,101 @@
-/* Color palette used:  
-Ink black #0D1F2D (set for background, change in app.css)
-Blue slate #546A7B
-Cool steel #9EA3B0
-Soft blush #FAE1DF
-Desert sand #E4C3AD
 
-*/
+/* Navbar */
+.navbar-container{
+    height: 60px;
+    background-color: #ffffffff;
 
-.spacer {
-    height: 100px;
 }
 
-.file-container{
-    background-color: #0D1F2D;
-    height: 550px;
+.navbar-title{
+    color: #1e293b;
+    font-family: Tahoma, sans-serif;
+    font-weight: bold;
+    font-size: 25px;
 }
 
-.WS-title{
-    font-size: 50px;
-    font-family:Verdana, Geneva, Tahoma, sans-serif;
+.navbar-links{
+    font-family: Tahoma, sans-serif;
+    font-size: 17px;
+    color: #64748b;
 }
 
-.file-upload{
-    height: 300px;
-    width: 30%;
+/* Home */
 
-    border-color: #9EA3B0;
+.title-normal{
+    color: #1e293b;
+    font-family: Tahoma, sans-serif;
+    font-weight: bold;
+    font-size: 60px;
 }
 
-.upload-text{
-    color: #9EA3B0;
-    font-size: 12px;
+.title-gradient{
+    background: linear-gradient(to right, #1d4ed8, #0ea5e9);
+    color: transparent;
+    background-clip: text;
+    font-family: Tahoma, sans-serif;
+    font-weight: bold;
+    font-size: 60px;
 }
 
-.file-upload-btn{
-    border-color: #9EA3B0;
-    color: white;
-    background-color: #143147;
-    min-width: 7%;
+.title-info{
+    color: #64748b;
+    font-family: Tahoma, sans-serif;
+    font-size: 18px;
+}
+
+.file-dropbox{
+    height: 350px;
+    min-width: 45%;
+    background-color: #ffffffff;
+    border: dashed;
+    border-color: #cbd5e1;
+    border-width: 2px;
+}
+
+.upload-text-primary{
+    color: #1e293b;
+    font-family: Tahoma, sans-serif;
+    font-weight: bold;
+    font-size: 20px;
+}
+
+.upload-text-secondary{
+    color: #64748b;
+    font-family: Tahoma, sans-serif;
+    font-size: 15px;
+}
+
+.browse-files-btn{
+    color: #64748b;
+    width: 25%;
     height: 40px;
-    margin: 10px;
+    border: solid;
+    border-width: 2px;
+    border-color: #cbd5e1;
 }
 
-.file-upload-btn:hover{
-    border-color: #9EA3B0;
-    color: white;
-    background-color: #0D1F2D;
-    min-width: 7%;
-    height: 40px;
-    margin: 10px;
+.active-dropbox{
+    height: 350px;
+    min-width: 45%;
+    background-color: #bfdbfe;
+    border: dashed;
+    border-color: #3b82f6;
+    border-width: 2px;
 }
 
-.file-select-btn{
-    border-color: #9EA3B0;
-    color: white;
-    background-color: #143147;
-    min-width: 10%;
-    height: 40px;
-    margin: 10px;
+.display-file-name{
+    color: #64748b;
+    font-family: Tahoma, sans-serif;
+    font-size: 15px;
 }
 
-.file-select-btn:hover{
-    border-color: #9EA3B0;
-    color: white;
-    background-color: #0D1F2D;
-    min-width: 10%;
-    height: 40px;
-    margin: 10px;
-}
-
-.file-icon{
-    width: 20%;
+.informational-cards{
+    color: #64748b;
+    font-size: 15px;
+    font-family: Tahoma, sans-serif;
+    border-style: solid;
+    border-width: 1px;
+    border-color: #cbd5e1;
 }
 
 .footer{
