@@ -15,7 +15,8 @@ use Illuminate\Support\Str;
 
 class FileController extends Controller
 {
-    public function uploadPcap(Request $request)
+    // Upload a file and create a job for analysis
+    public function create(Request $request)
     {
         $validated = $request->validate([
             // Now the file size is limited to 10 mb
@@ -49,16 +50,16 @@ class FileController extends Controller
                 ]);
             }
 
-            // 3. Set Cache for fast status polling
-            Cache::put(
-                'analysis_' . $uuid,
-                [
-                    'status' => 'processing',
-                ],
-                600
-            );
+            // // 3. Set Cache for fast status polling
+            // Cache::put(
+            //     'analysis_' . $uuid,
+            //     [
+            //         'status' => 'processing',
+            //     ],
+            //     600
+            // );
 
-            return redirect('/pcap/status/' . $uuid)->with('success', 'File upload was successful.');
+            return redirect('/pcap/analysis/' . $uuid)->with('success', 'File upload was successful.');
         } catch (Exception $e) {
             Log::error('File save failed', [
                 'message' => $e->getMessage(),

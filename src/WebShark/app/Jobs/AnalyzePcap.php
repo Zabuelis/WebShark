@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Log;
 use App\Models\RedisJob;
+use Illuminate\Support\Facades\File;
+
 
 class AnalyzePcap implements ShouldQueue
 {
@@ -32,7 +34,7 @@ class AnalyzePcap implements ShouldQueue
         $pythonPath = env('PYTHON_BINARY', 'python3');
 
         $result = Process::timeout($this->timeout)
-            ->run("$pythonPath $scriptPath $filePath");
+            ->run("$pythonPath $scriptPath $filePath $this->uuid");
 
         if (!$result->successful()) {
             Log::error("Python error for {$this->uuid}: " . $result->errorOutput());
@@ -43,39 +45,37 @@ class AnalyzePcap implements ShouldQueue
             return;
         }
 
-        // Python outputs one JSON object per line
-        // We split by newline and decode each line separately
-        $lines = explode("\n", trim($result->output()));
-        $packets = [];
+        // // Python outputs one JSON object per line
+        // // We split by newline and decode each line separately
+        // $lines = explode("\n", trim($result->output()));
+        // // $packets = [];
 
-        foreach ($lines as $line) {
-            // skip empty lines
-            if (empty($line)) {
-                continue;
-            }
+        // foreach ($lines as $line) {
+        //     // skip empty lines
+        //     if (empty($line)) {
+        //         continue;
+        //     }
 
-            // skip error lines from Python
-            if (str_starts_with($line, 'ERROR:')) {
-                Log::error("Python: " . $line);
-                continue;
-            }
+        //     // skip error lines from Python
+        //     if (str_starts_with($line, 'ERROR:')) {
+        //         Log::error("Python: " . $line);
+        //         continue;
+        //     }
 
-            $decoded = json_decode($line, true);
-            // returns null if the line isn't valid JSON
-            if ($decoded !== null) {
-                $packets[] = $decoded;
-            }
-        }
+        //     // $decoded = json_decode($line, true);
+        //     // // returns null if the line isn't valid JSON
+        //     // if ($decoded !== null) {
+        //     //     $packets[] = $decoded;
+        //     // }
+        // }
 
         RedisJob::where('redis_id', '=', $this->uuid)->update([
             'status' => 'finished',
             'expires_at' => now()->addHours(2),
         ]);
 
-        Cache::put('analysis_' . $this->uuid, [
-            'status' => 'done',
-            'total_packets' => count($packets),
-            'packets' => $packets,
-        ], 600);
+        if(File::exists($filePath)){
+            File::delete($filePath);
+        }
     }
 }

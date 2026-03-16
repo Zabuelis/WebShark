@@ -192,6 +192,7 @@ def analyze_packet(pkt, index):
 
 # Entry point
 file_path = sys.argv[1]
+redis_id = sys.argv[2]
 # Get environmental DB connection variables
 dbName = os.getenv('DB_DATABASE')
 dbUser = os.getenv('DB_USERNAME')
@@ -211,35 +212,36 @@ if not validate_pcap(file_path):
 with PcapReader(file_path) as reader:
     for index, pkt in enumerate(reader):
         result = analyze_packet(pkt, index)
-        print(json.dumps(result))
-        # cursor.execute("""INSERT INTO packet 
-        #     (
-        #         redis_id, 
-        #         l3_protocol,
-        #         src_ip, 
-        #         dst_ip, 
-        #         captured_packet_length,
-        #         src_port, 
-        #         dst_port,
-        #         l4_protocol,
-        #         l7_protocol
-        #     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-        #     (
-        #         "0ccbdb67-9172-4642-913f-3725d816a53c", 
-        #         result["layers"]["L3"].get("protocol"),
-        #         result["layers"]["L3"].get("src"), 
-        #         result["layers"]["L3"].get("dst"), 
-        #         result["layers"]["L3"].get("length"),
-        #         result["layers"]["L4"].get("src_port"), 
-        #         result["layers"]["L4"].get("dst_port"),
-        #         result["layers"]["L4"].get("protocol"),
-        #         result["layers"]["L7"].get("protocol")
-        #     )
-        # )
-        # # By default commit insertions every 1000 lines
-        # if(index % 1000 == 0):
-        #     conn.commit()
-        
+        cursor.execute("""INSERT INTO packet 
+            (
+                redis_id, 
+                l3_protocol,
+                src_ip, 
+                dst_ip, 
+                captured_packet_length,
+                src_port, 
+                dst_port,
+                l4_protocol,
+                l7_protocol
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            (
+                redis_id, 
+                result["layers"]["L3"].get("protocol"),
+                result["layers"]["L3"].get("src"), 
+                result["layers"]["L3"].get("dst"), 
+                result["layers"]["L3"].get("length"),
+                result["layers"]["L4"].get("src_port"), 
+                result["layers"]["L4"].get("dst_port"),
+                result["layers"]["L4"].get("protocol"),
+                result["layers"]["L7"].get("protocol")
+            )
+        )
+        # By default commit insertions every 1000 lines
+        if(index % 1000 == 0):
+            conn.commit()
+print(json.dumps({
+    "job": "finished"
+}))
 # Commit potential leftover insertion to the DB
 conn.commit()
 # Close DB connection

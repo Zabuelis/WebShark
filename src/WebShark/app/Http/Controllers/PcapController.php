@@ -4,20 +4,34 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Models\RedisJob;
+use App\Models\Packet;
 
 class PcapController extends Controller
 {
-    public function status(Request $request): JsonResponse
-    {
-        $data = $request->attributes->get('analysisData');
+    public function show(String $id){
+        // Return only the status column from redis_job table
+        $jobStatus = RedisJob::where('redis_id', '=', $id)->pluck('status')->first();
 
-        if ($data['status'] === 'processing') {
+        // Check the status of the job
+        if ($jobStatus === 'dispatched') {
             return response()->json([
-                'status' => 'processing',
+                'status' => 'dispatching',
                 'message' => 'Still analyzing, try refreshing in a few seconds.',
+            ]);
+        } else if ($jobStatus === 'failed'){
+            return response()->json([
+                'status' => 'failed',
+                'message' => 'Analysis failed, please retry later.',
             ]);
         }
 
-        return response()->json($data);
+        // Return packets related to the job id from packet table
+        $data = Packet::where('redis_id', '=', $id)->orderBy('packet_id', 'asc')->get();
+
+        return response()->json([
+            'packets' => $data
+        ]);
+
     }
 }
