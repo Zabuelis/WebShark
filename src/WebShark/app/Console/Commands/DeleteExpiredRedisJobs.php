@@ -26,6 +26,6 @@ class DeleteExpiredRedisJobs extends Command
      */
     public function handle()
     {
-        RedisJob::where('expires_at', '<', now())->where('status', '=', 'finished')->delete();
+        RedisJob::where('expires_at', '<', now())->where('status', '!=', 'dispatched')->delete();
     }
 }

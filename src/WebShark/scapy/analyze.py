@@ -1,4 +1,6 @@
 import sys
+import os
+import psycopg2
 import json
 from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP, DNS
 
@@ -164,9 +166,9 @@ def analyze_packet(pkt, index):
         "id": index,
         "length": len(pkt),
         "layers": {
-            "L3": None,
-            "L4": None,
-            "L7": None,
+            "L3": {},
+            "L4": {},
+            "L7": {},
         },
         "hex_dump": get_hex_dump(pkt),
     }
@@ -190,6 +192,14 @@ def analyze_packet(pkt, index):
 
 # Entry point
 file_path = sys.argv[1]
+# Get environmental DB connection variables
+dbName = os.getenv('DB_DATABASE')
+dbUser = os.getenv('DB_USERNAME')
+dbPass = os.getenv('DB_PASSWORD')
+dbHost = os.getenv('DB_HOST')
+# Establish connection to the DB
+conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={dbPass}')
+cursor = conn.cursor()
 
 if not validate_pcap(file_path):
     print(
@@ -202,3 +212,36 @@ with PcapReader(file_path) as reader:
     for index, pkt in enumerate(reader):
         result = analyze_packet(pkt, index)
         print(json.dumps(result))
+        # cursor.execute("""INSERT INTO packet 
+        #     (
+        #         redis_id, 
+        #         l3_protocol,
+        #         src_ip, 
+        #         dst_ip, 
+        #         captured_packet_length,
+        #         src_port, 
+        #         dst_port,
+        #         l4_protocol,
+        #         l7_protocol
+        #     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+        #     (
+        #         "0ccbdb67-9172-4642-913f-3725d816a53c", 
+        #         result["layers"]["L3"].get("protocol"),
+        #         result["layers"]["L3"].get("src"), 
+        #         result["layers"]["L3"].get("dst"), 
+        #         result["layers"]["L3"].get("length"),
+        #         result["layers"]["L4"].get("src_port"), 
+        #         result["layers"]["L4"].get("dst_port"),
+        #         result["layers"]["L4"].get("protocol"),
+        #         result["layers"]["L7"].get("protocol")
+        #     )
+        # )
+        # # By default commit insertions every 1000 lines
+        # if(index % 1000 == 0):
+        #     conn.commit()
+        
+# Commit potential leftover insertion to the DB
+conn.commit()
+# Close DB connection
+cursor.close()
+conn.close()

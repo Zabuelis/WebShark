@@ -7,6 +7,7 @@ use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Log;
+use App\Models\RedisJob;
 
 class AnalyzePcap implements ShouldQueue
 {
@@ -35,10 +36,10 @@ class AnalyzePcap implements ShouldQueue
 
         if (!$result->successful()) {
             Log::error("Python error for {$this->uuid}: " . $result->errorOutput());
-            Cache::put('analysis_' . $this->uuid, [
+            RedisJob::where('redis_id', '=', $this->uuid)->update([
                 'status' => 'failed',
-                'error' => $result->errorOutput(),
-            ], 600);
+                'expires_at' => now()->addMinutes(10),
+            ]);
             return;
         }
 
@@ -65,6 +66,11 @@ class AnalyzePcap implements ShouldQueue
                 $packets[] = $decoded;
             }
         }
+
+        RedisJob::where('redis_id', '=', $this->uuid)->update([
+            'status' => 'finished',
+            'expires_at' => now()->addHours(2),
+        ]);
 
         Cache::put('analysis_' . $this->uuid, [
             'status' => 'done',

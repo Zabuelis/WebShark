@@ -14,6 +14,9 @@ return new class extends Migration
         Schema::create('packet', function (Blueprint $table) {
             $table->id('packet_id');
             $table->uuid('redis_id');
+            $table->string('l3_protocol')->nullable(true);
+            $table->string('l4_protocol')->nullable(true);
+            $table->string('l7_protocol')->nullable(true);
             $table->string('src_ip')->nullable(true);
             $table->string('dst_ip')->nullable(true);
             $table->integer('src_port')->nullable(true);
