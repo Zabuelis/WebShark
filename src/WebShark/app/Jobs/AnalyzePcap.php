@@ -37,45 +37,25 @@ class AnalyzePcap implements ShouldQueue
             ->run("$pythonPath $scriptPath $filePath $this->uuid");
 
         if (!$result->successful()) {
-            Log::error("Python error for {$this->uuid}: " . $result->errorOutput());
             RedisJob::where('redis_id', '=', $this->uuid)->update([
                 'status' => 'failed',
                 'expires_at' => now()->addMinutes(10),
             ]);
+            removeFile($filePath);
+            Log::error("Python error for {$this->uuid}: " . $result->errorOutput());
             return;
         }
-
-        // // Python outputs one JSON object per line
-        // // We split by newline and decode each line separately
-        // $lines = explode("\n", trim($result->output()));
-        // // $packets = [];
-
-        // foreach ($lines as $line) {
-        //     // skip empty lines
-        //     if (empty($line)) {
-        //         continue;
-        //     }
-
-        //     // skip error lines from Python
-        //     if (str_starts_with($line, 'ERROR:')) {
-        //         Log::error("Python: " . $line);
-        //         continue;
-        //     }
-
-        //     // $decoded = json_decode($line, true);
-        //     // // returns null if the line isn't valid JSON
-        //     // if ($decoded !== null) {
-        //     //     $packets[] = $decoded;
-        //     // }
-        // }
 
         RedisJob::where('redis_id', '=', $this->uuid)->update([
             'status' => 'finished',
             'expires_at' => now()->addHours(2),
         ]);
+        removeFile($filePath);
+    }
 
-        if(File::exists($filePath)){
-            File::delete($filePath);
+    private function removeFile($filePath){
+        if(file_exists($filePath)){
+            unlink($filePath);
         }
     }
 }

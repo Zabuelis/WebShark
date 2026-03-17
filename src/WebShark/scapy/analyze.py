@@ -210,9 +210,26 @@ if not validate_pcap(file_path):
     sys.exit(1)
 
 with PcapReader(file_path) as reader:
+    row_limit = 1000
+    rows = []
     for index, pkt in enumerate(reader):
         result = analyze_packet(pkt, index)
-        cursor.execute("""INSERT INTO packet 
+        # Make a list of 1000 tuples and then commit to DB
+        rows.append((
+            redis_id, 
+            result["layers"]["L3"].get("protocol"),
+            result["layers"]["L3"].get("src"), 
+            result["layers"]["L3"].get("dst"), 
+            result["layers"]["L3"].get("length"),
+            result["layers"]["L4"].get("src_port"), 
+            result["layers"]["L4"].get("dst_port"),
+            result["layers"]["L4"].get("protocol"),
+            result["layers"]["L7"].get("protocol")
+        ))
+
+        # Execute many works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required
+        if len(rows) >= row_limit:
+            cursor.executemany("""INSERT INTO packet 
             (
                 redis_id, 
                 l3_protocol,
@@ -223,27 +240,24 @@ with PcapReader(file_path) as reader:
                 dst_port,
                 l4_protocol,
                 l7_protocol
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-            (
-                redis_id, 
-                result["layers"]["L3"].get("protocol"),
-                result["layers"]["L3"].get("src"), 
-                result["layers"]["L3"].get("dst"), 
-                result["layers"]["L3"].get("length"),
-                result["layers"]["L4"].get("src_port"), 
-                result["layers"]["L4"].get("dst_port"),
-                result["layers"]["L4"].get("protocol"),
-                result["layers"]["L7"].get("protocol")
-            )
-        )
-        # By default commit insertions every 1000 lines
-        if(index % 1000 == 0):
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""" , rows)
             conn.commit()
-print(json.dumps({
-    "job": "finished"
-}))
-# Commit potential leftover insertion to the DB
-conn.commit()
+            rows.clear()
+
+if len(rows) > 0:
+    cursor.executemany("""INSERT INTO packet 
+    (
+        redis_id, 
+        l3_protocol,
+        src_ip, 
+        dst_ip, 
+        captured_packet_length,
+        src_port, 
+        dst_port,
+        l4_protocol,
+        l7_protocol
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""" , rows)
+    conn.commit()
 # Close DB connection
 cursor.close()
 conn.close()

@@ -14,7 +14,7 @@ class PcapController extends Controller
         $jobStatus = RedisJob::where('redis_id', '=', $id)->pluck('status')->first();
 
         // Check the status of the job
-        if ($jobStatus === 'dispatched') {
+        if ($jobStatus === 'dispatching') {
             return response()->json([
                 'status' => 'dispatching',
                 'message' => 'Still analyzing, try refreshing in a few seconds.',

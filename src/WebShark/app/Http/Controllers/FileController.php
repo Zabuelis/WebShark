@@ -50,16 +50,10 @@ class FileController extends Controller
                 ]);
             }
 
-            // // 3. Set Cache for fast status polling
-            // Cache::put(
-            //     'analysis_' . $uuid,
-            //     [
-            //         'status' => 'processing',
-            //     ],
-            //     600
-            // );
+            // This instead of rendering a new page returns a modal view with json data because there is no inertia page to render
+            // Testing for now should be done by manually entering the URL
+            return redirect('/pcap/analysis/' . $uuid);
 
-            return redirect('/pcap/analysis/' . $uuid)->with('success', 'File upload was successful.');
         } catch (Exception $e) {
             Log::error('File save failed', [
                 'message' => $e->getMessage(),
