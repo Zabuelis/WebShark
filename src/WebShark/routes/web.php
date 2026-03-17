@@ -15,7 +15,7 @@ Route::get('/', function () {
 // Upload route with rate limiting
 Route::middleware('rateLimit')->group(function () {
     Route::post('/file/uploadPcap', [
-        FileController::class,
+        PcapController::class,
         'create',
     ])->name('upload.pcap');
 });
