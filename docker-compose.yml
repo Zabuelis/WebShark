@@ -38,7 +38,6 @@ services:
     build:
       context: ./src/WebShark
       dockerfile: Dockerfile
-    container_name: webshark-queue
     restart: unless-stopped
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
     working_dir: /var/www

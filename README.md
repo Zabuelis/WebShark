@@ -16,9 +16,7 @@ sudo docker compose --env-file src/WebShark/.env up -d --build
 ### 3. Install dependencies (First time only)
 ```bash
 sudo docker exec -it webshark-app composer install
-sudo docker compose --env-file src/WebShark/.env run --rm node npm install --legacy-peer-deps
-sudo docker compose --env-file src/WebShark/.env up -d --build
-sudo docker exec -it webshark-node npm install --legacy-peer-deps
+sudo docker exec -it webshark-node npm install
 ```
 
 ### 4. Laravel setup (First time only)
@@ -33,29 +31,27 @@ sudo docker exec -it webshark-app php artisan migrate
 ssh -L 8000:localhost:8000 -L 5173:localhost:5173 <OpenNebula CONNECT_INFO1 (without the ssh)>
 ```
 
-### 6. Restart it (First time only)
-```bash
-sudo docker compose down
-sudo docker compose --env-file src/WebShark/.env up -d --build
-```
-
-### 7. Test it
+### 6. Test it
 ```bash
 http://localhost:8000/
 ```
 
-### 8. Stopping
+### 7. Stopping
 ```bash
 sudo docker compose down
 ```
 
-```bash
 # To see PostgreSQL
+```bash
 sudo docker compose --env-file src/WebShark/.env exec db psql -U webshark -d websharkdb -c "SELECT * FROM redis_job;"
+```
 
 # To see Redis
-sudo docker compose --env-file src/WebShark/.env exec redis redis-cli KEYS "*"
+```bash
+sudo docker compose --env-file src/WebShark/.env exec valkey valkey-cli KEYS "*"
+```
 
-# Scalability for queue-worker?
-sudo docker compose up -d --scale queue-worker=3
+# Scalability for queue-worker
+```bash
+sudo docker compose --env-file src/WebShark/.env up -d --scale queue-worker=3
 ```
