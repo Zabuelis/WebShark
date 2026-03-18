@@ -7,16 +7,23 @@ use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Log;
+use App\Models\RedisJob;
+use Throwable;
+use Illuminate\Support\Facades\File;
+
 
 class AnalyzePcap implements ShouldQueue
 {
     use Queueable;
 
     public int $timeout = 600;
+    private $filePath;
+    private $errorCounter = 0;
+    private $errorLimit = 3;
 
     public function __construct(public string $uuid, public string $fileName)
     {
-        //
+        $this->filePath = storage_path('app/private/pcap/' . $this->fileName);
     }
 
     /**
@@ -25,51 +32,44 @@ class AnalyzePcap implements ShouldQueue
     public function handle(): void
     {
         $scriptPath = base_path('scapy/analyze.py');
-        $filePath = storage_path('app/private/pcap/' . $this->fileName);
-        
+    
         // env() function to get the Python path, the second parameter is a fallback
         $pythonPath = env('PYTHON_BINARY', 'python3');
 
         $result = Process::timeout($this->timeout)
-            ->run("$pythonPath $scriptPath $filePath");
+            ->run("$pythonPath $scriptPath $this->filePath $this->uuid");
 
         if (!$result->successful()) {
-            Log::error("Python error for {$this->uuid}: " . $result->errorOutput());
-            Cache::put('analysis_' . $this->uuid, [
+            RedisJob::where('redis_id', '=', $this->uuid)->update([
                 'status' => 'failed',
-                'error' => $result->errorOutput(),
-            ], 600);
+                'expires_at' => now()->addMinutes(10),
+            ]);
+            Log::error("Python error for {$this->uuid}: " . $result->errorOutput());
+           $this->removeFile();
             return;
         }
 
-        // Python outputs one JSON object per line
-        // We split by newline and decode each line separately
-        $lines = explode("\n", trim($result->output()));
-        $packets = [];
-
-        foreach ($lines as $line) {
-            // skip empty lines
-            if (empty($line)) {
-                continue;
-            }
-
-            // skip error lines from Python
-            if (str_starts_with($line, 'ERROR:')) {
-                Log::error("Python: " . $line);
-                continue;
-            }
-
-            $decoded = json_decode($line, true);
-            // returns null if the line isn't valid JSON
-            if ($decoded !== null) {
-                $packets[] = $decoded;
-            }
-        }
-
-        Cache::put('analysis_' . $this->uuid, [
-            'status' => 'done',
-            'total_packets' => count($packets),
-            'packets' => $packets,
-        ], 600);
+        RedisJob::where('redis_id', '=', $this->uuid)->update([
+            'status' => 'finished',
+            'expires_at' => now()->addHours(2),
+        ]);
+       $this->removeFile();
     }
+
+    // On job fail change the status and remove the file
+    public function failed(?Throwable $exception): void
+    {
+        RedisJob::where('redis_id', '=', $this->uuid)->update([
+            'status' => 'failed',
+            'expires_at' => now()->addMinutes(10),
+        ]);
+        $this->removeFile();
+    }
+
+    private function removeFile(): void{
+        if(file_exists($this->filePath)){
+            unlink($this->filePath);
+        }
+    }
+
 }

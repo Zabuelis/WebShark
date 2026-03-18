@@ -1,4 +1,7 @@
 import sys
+import os
+import psycopg2
+import psycopg2.extras
 import json
 from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP, DNS
 
@@ -164,9 +167,9 @@ def analyze_packet(pkt, index):
         "id": index,
         "length": len(pkt),
         "layers": {
-            "L3": None,
-            "L4": None,
-            "L7": None,
+            "L3": {},
+            "L4": {},
+            "L7": {},
         },
         "hex_dump": get_hex_dump(pkt),
     }
@@ -190,6 +193,15 @@ def analyze_packet(pkt, index):
 
 # Entry point
 file_path = sys.argv[1]
+redis_id = sys.argv[2]
+# Get environmental DB connection variables
+dbName = os.getenv('DB_DATABASE')
+dbUser = os.getenv('DB_USERNAME')
+dbPass = os.getenv('DB_PASSWORD')
+dbHost = os.getenv('DB_HOST')
+# Establish connection to the DB
+conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={dbPass}')
+cursor = conn.cursor()
 
 if not validate_pcap(file_path):
     print(
@@ -199,6 +211,46 @@ if not validate_pcap(file_path):
     sys.exit(1)
 
 with PcapReader(file_path) as reader:
+    row_limit = 1000
+    query = """INSERT INTO packet 
+        (
+            redis_id, 
+            l3_protocol,
+            src_ip, 
+            dst_ip, 
+            captured_packet_length,
+            src_port, 
+            dst_port,
+            l4_protocol,
+            l7_protocol
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+    rows = []
     for index, pkt in enumerate(reader):
         result = analyze_packet(pkt, index)
-        print(json.dumps(result))
+        # Make a list of 1000 tuples and then commit to DB
+        rows.append((
+            redis_id, 
+            result["layers"]["L3"].get("protocol"),
+            result["layers"]["L3"].get("src"), 
+            result["layers"]["L3"].get("dst"), 
+            result["layers"]["L3"].get("length"),
+            result["layers"]["L4"].get("src_port"), 
+            result["layers"]["L4"].get("dst_port"),
+            result["layers"]["L4"].get("protocol"),
+            result["layers"]["L7"].get("protocol")
+        ))
+
+        # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required
+        # Executing all rows tends to reduce 1-2 seconds (for 2mb file), but increases memory consumption
+        # Comparing execute_batch with executemany (~2mb file) revealed no difference despite documentation telling different
+        if len(rows) >= row_limit:
+            psycopg2.extras.execute_batch(cursor, query, rows)
+            conn.commit()
+            rows.clear()
+
+if len(rows) > 0:
+    psycopg2.extras.execute_batch(cursor, query, rows)
+    conn.commit()
+# Close DB connection
+cursor.close()
+conn.close()
