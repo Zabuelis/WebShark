@@ -53,7 +53,7 @@
     <Head title="Home" />
     <NavBar />
 
-    <div class = "flex-auto">
+    <div class = "flex-auto min-h-screen">
         <!-- Feedback messages -->
         <div v-if="pageMessages.props.flash.error" class="bg-red-100 border border-red-400 text-center text-red-700 px-4 py-3 rounded relative" role="alert">
             <strong class="font-bold">{{ pageMessages.props.flash.error }}</strong>
@@ -62,52 +62,55 @@
             <strong class="font-bold">{{ pageMessages.props.flash.success }}</strong>
         </div>
 
-        <div class="text-center pt-20">
+        <div class="text-center pt-5">
             <h1 class="title-normal">Analyze your network</h1>
             <h1 class="title-gradient">traffic in seconds</h1>
         </div>
-        <div class="title-info pt-6 pb-20 text-center">
+        <div class="title-info pt-6 pb-10 text-center">
             <p>Upload a PCAP or PCAPNG capture file and get instant insights <br> into your network packets - protocols, flows and more.</p>
         </div>
 
         <!-- File upload container -->
-        <div class="flex justify-center pb-15">
-            <div @dragenter.prevent="toggleActive" 
-                @dragleave.prevent="toggleActive" 
-                @dragover.prevent
-                @drop.prevent="fileChange"
-                :class="{'active-dropbox': active}"
-                class="file-dropbox rounded-md">
-                <form @submit.prevent="submit" enctype="multipart/form-data">
-                    <div class="flex justify-center pt-10">
-                        <svg xmlns="http://www.w3.org/2000/svg" height="60" fill="currentColor" class=" bi bi-file-earmark-arrow-up-fill" viewBox="0 0 16 16">
-                            <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0M9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1M6.354 9.854a.5.5 0 0 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 8.707V12.5a.5.5 0 0 1-1 0V8.707z"/>
-                        </svg>
-                    </div>
-                    <div class="pt-8 text-center">
-                        <span class="upload-text-primary">Drop your capture file here</span>
-                        <p class="upload-text-secondary pt-1">or click to browse - PCAP & PCAPNG supported up to 10 MB</p>
-                    </div>
-                    <div v-if="!file" class="flex py-6 justify-center">
-                        <label class="hover:bg-gray-300 bg-gray-200 cursor-pointer browse-files-btn flex justify-center items-center rounded-md">
-                            Browse files
-                            <input @change="fileChange" type="file" accept=".pcap, .pcapng" class="hidden"/>
-                        </label>
-                    </div>
-                    <div>
-                        <div v-if="file" class="display-file-name pt-4 flex justify-center">
-                            <p>Selected file:<br> {{ file.name }}</p>
+        <form @submit.prevent="submit" enctype="multipart/form-data">
+            <div class="flex justify-center">
+                <div @dragenter.prevent="toggleActive" 
+                    @dragleave.prevent="toggleActive" 
+                    @dragover.prevent
+                    @drop.prevent="fileChange"
+                    :class="{'active-dropbox': active}"
+                    class="file-dropbox rounded-md">
+                    
+                        <div class="flex justify-center pt-10">
+                            <svg xmlns="http://www.w3.org/2000/svg" height="60" fill="currentColor" class=" bi bi-file-earmark-arrow-up-fill" viewBox="0 0 16 16">
+                                <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0M9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1M6.354 9.854a.5.5 0 0 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 8.707V12.5a.5.5 0 0 1-1 0V8.707z"/>
+                            </svg>
                         </div>
-                        <div v-if="file" class="flex justify-center pt-2" >
-                            <button type="submit" class="hover:bg-gray-300 bg-gray-200 browse-files-btn m-2 cursor-pointer border border-solid rounded-md"> Analyze! </button>
-                            <button @click="resetFile" type="button" class="hover:bg-gray-300 bg-gray-200 m-2 browse-files-btn cursor-pointer border border-solid rounded-md "> Reset </button>
+                        <div class="pt-8">
+                            <span class="flex justify-center upload-text-primary">Drop your capture file here</span>
+                            <p class="flex justify-center upload-text-secondary p-2">or click to browse - PCAP & PCAPNG supported up to 10 MB</p>
                         </div>
-                    </div>
-                </form>
+                        <div v-if="!file" class="flex py-6 justify-center">
+                            <label class="hover:bg-gray-300 bg-gray-200 cursor-pointer browse-files-btn flex justify-center items-center rounded-md">
+                                Browse files
+                                <input @change="fileChange" type="file" accept=".pcap, .pcapng" class="hidden"/>
+                            </label>
+                        </div>
+                        <div>
+                            <div v-if="file" class="display-file-name pt-4 flex justify-center">
+                                <p>Selected file:<br> {{ file.name }}</p>
+                            </div>
+                        </div>
+                </div>
             </div>
-        </div>
+            <div v-if="file" class="flex justify-center p-5" >
+                <div class="w-4xl flex justify-center">
+                    <button type="submit" class="hover:bg-gray-300 bg-gray-200 browse-files-btn m-2 cursor-pointer border border-solid rounded-md"> Analyze! </button>
+                    <button @click="resetFile" type="button" class="hover:bg-red-300 bg-red-400 m-2 browse-files-btn cursor-pointer border border-solid rounded-md "> Cancel </button>
+                </div>
+            </div>
+        </form>
 
-        <div class="flex justify-center pt-5">
+        <div class="flex justify-center p-15">
             <ul class="flex items-center gap-6">
                 <li class="flex rounded-xl informational-cards bg-white items-center px-3"> 
                     <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 640 640"><!--!Font Awesome Free v7.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc. -->
