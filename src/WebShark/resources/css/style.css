@@ -44,7 +44,7 @@
 }
 
 .file-dropbox{
-    height: 350px;
+    height: 300px;
     min-width: 45%;
     background-color: #ffffffff;
     border: dashed;
@@ -67,6 +67,7 @@
 
 .browse-files-btn{
     color: #64748b;
+    font-family: Tahoma, sans-serif;
     width: 25%;
     height: 40px;
     border: solid;

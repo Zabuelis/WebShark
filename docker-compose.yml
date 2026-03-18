@@ -14,6 +14,25 @@ services:
     networks:
       - webshark-net
 
+  # For development source files are expected to stay under user ownership, therefore container user is dynamic.
+  # Creating a container which executes a command every minute creates a work around for mentioned issue.
+  # For production cronjobs could be implemented, but this works just as good. 
+  cron:
+    build:
+      context: ./src/WebShark
+      dockerfile: Dockerfile
+    container_name: webshark-cron
+    restart: unless-stopped
+    user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
+    working_dir: /var/www
+    volumes:
+      - ./src/WebShark:/var/www
+    env_file:
+      - ./src/WebShark/.env
+    command: sh -c "while true; do php artisan schedule:run; sleep 60; done"
+    networks:
+      - webshark-net
+
   # The Queue Worker (Processes the PCAP jobs in background)
   queue-worker:
     build:
