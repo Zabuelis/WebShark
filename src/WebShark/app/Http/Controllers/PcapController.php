@@ -82,7 +82,9 @@ class PcapController extends Controller
         }
 
         // Return packets related to the job id from packet table
-        $data = Packet::where('redis_id', '=', $id)->orderBy('packet_id', 'asc')->get();
+        $data = Packet::where('redis_id', '=', $id)
+                            ->orderBy('packet_id', 'asc')
+                            ->paginate(20);
 
         return Inertia::render('Analysis', [
             'packets' => $data,

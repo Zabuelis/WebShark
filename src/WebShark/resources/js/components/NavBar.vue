@@ -11,7 +11,7 @@ import myLogo from '../../images/logo.png';
         </div>
 
         <!-- Links to informational pages -->
-        <div>
+        <!-- <div>
             <ul class="navbar-links flex items-center gap-6">
                 <li>
                     <a class="hover:text-gray-800" href="#">Docs</a>
@@ -20,6 +20,6 @@ import myLogo from '../../images/logo.png';
                     <a class="hover:text-gray-800" href="#">ToS</a>
                 </li>
             </ul>
-        </div>
+        </div> -->
     </nav>
 </template>

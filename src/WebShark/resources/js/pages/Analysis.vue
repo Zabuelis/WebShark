@@ -71,26 +71,22 @@ const totalMB = computed(() => {
 })
 
 const filteredPackets = computed(() => {
-    // If search is empty, just show everything
-    if (!filterText.value) return props.packets
+    const packetArray = props.packets.data || []
+    
+    // If no filter text, return all packets
+    if (!filterText.value) return packetArray
 
     const search = filterText.value.toLowerCase()
+    return packetArray.filter(p => 
+        p.src_ip.toLowerCase().includes(search) || 
+        p.dst_ip.toLowerCase().includes(search) ||
+        p.l4_protocol.toLowerCase().includes(search)
 
-    return props.packets.filter(p => {
-        return (
-            p.src_ip.toLowerCase().includes(search) ||
-            p.dst_ip.toLowerCase().includes(search) ||
-            p.l4_protocol.toLowerCase().includes(search)
-            // ToDo: Add more fields to search
-        )
-    })
+    )
 })
 
 const props = defineProps({
-    packets: {
-        type: Array,
-        default: () => []
-    },
+    packets: Object,
     status: String,
     message: String,
     id: String
@@ -219,6 +215,38 @@ onMounted(() => {
                             No packets match "{{ filterText }}"
                         </div>
                     </div>
+
+                    <!-- Pagination footer-->
+                    <div class="bg-white border-t border-slate-200 px-4 py-2 flex items-center justify-between shrink-0">
+                        <div class="text-xs text-slate-500 font-medium">
+                            Showing <span class="text-slate-900 font-bold">{{ props.packets.from }}</span> 
+                            to <span class="text-slate-900 font-bold">{{ props.packets.to }}</span> 
+                            of <span class="text-slate-900 font-bold">{{ props.packets.total }}</span> packets
+                        </div>
+
+                        <div class="flex gap-2">
+                            <!-- Previous Page Button -->
+                            <button 
+                                @click="router.visit(props.packets.prev_page_url)"
+                                :disabled="!props.packets.prev_page_url"
+                                :class="!props.packets.prev_page_url ? 'opacity-30 cursor-not-allowed' : 'hover:bg-slate-100'"
+                                class="px-3 py-1.5 border border-slate-200 rounded text-xs font-bold text-slate-600 transition-colors"
+                            >
+                                Previous
+                            </button>
+
+                            <!-- Next Page Button -->
+                            <button 
+                                @click="router.visit(props.packets.next_page_url)"
+                                :disabled="!props.packets.next_page_url"
+                                :class="!props.packets.next_page_url ? 'opacity-30 cursor-not-allowed' : 'hover:bg-slate-100'"
+                                class="px-3 py-1.5 border border-slate-200 rounded text-xs font-bold text-slate-600 transition-colors"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+
                 </main>
 
                 <!-- The right side -->
