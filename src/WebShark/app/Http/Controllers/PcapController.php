@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 
 class PcapController extends Controller
 {
@@ -36,8 +37,7 @@ class PcapController extends Controller
             $fileName = $request->file('pcap_file')->getClientOriginalName();
 
             // Pcaps are stored with a timestamp + session ID prefix
-            $rebuiltFileName =
-                now()->format('Y-m-d_h:i:s') . '_' . $sessionID . '_' . $fileName;
+            $rebuiltFileName = now()->format('Y-m-d_h:i:s') . '_' . $sessionID . '_' . $fileName;
             $request->file('pcap_file')->storeAs('pcap', $rebuiltFileName);
 
             // 1. Dispatch job & log to DB
@@ -51,9 +51,7 @@ class PcapController extends Controller
                 ]);
             }
 
-            // This instead of rendering a new page returns a modal view with json data because there is no inertia page to render
-            // Testing for now should be done by manually entering the URL
-            return redirect('/pcap/analysis/' . $uuid);
+            return redirect()->route('pcap.status', ['id' => $uuid])->with('success', 'File uploaded successfully, analysis started.');
 
         } catch (Exception $e) {
             Log::error('File save failed', [
@@ -70,22 +68,26 @@ class PcapController extends Controller
 
         // Check the status of the job
         if ($jobStatus === 'dispatching') {
-            return response()->json([
+            return Inertia::render('Analysis', [
                 'status' => 'dispatching',
                 'message' => 'Still analyzing, try refreshing in a few seconds.',
+                'id' => $id,
             ]);
         } else if ($jobStatus === 'failed'){
-            return response()->json([
+            return Inertia::render('Analysis', [
                 'status' => 'failed',
                 'message' => 'Analysis failed, please retry later.',
+                'id' => $id,
             ]);
         }
 
         // Return packets related to the job id from packet table
         $data = Packet::where('redis_id', '=', $id)->orderBy('packet_id', 'asc')->get();
 
-        return response()->json([
-            'packets' => $data
+        return Inertia::render('Analysis', [
+            'packets' => $data,
+            'status' => 'finished',
+            'id' => $id,
         ]);
 
     }
