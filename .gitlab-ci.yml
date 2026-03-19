@@ -4,16 +4,23 @@ stages:
   - deploy
 
 variables:
+  VM_IP: "193.219.91.104"
+  VM_PORT: "9401"
+  APP_URL: "http://${VM_IP}:${VM_PORT}"
   COMPOSE_CMD: "docker compose --env-file src/WebShark/.env"
   ENV_FILE: "src/WebShark/.env"
 
-before_script:
+.env-setup: &env-setup
   - cp src/WebShark/.env.example $ENV_FILE
   - sed -i "s/WWWUSER=1000/WWWUSER=$(id -u)/" $ENV_FILE
   - sed -i "s/WWWGROUP=1000/WWWGROUP=$(id -g)/" $ENV_FILE
+  - sed -i "s|^APP_URL=.*|APP_URL=${APP_URL}|g" $ENV_FILE
+  - sed -i "s|^VITE_APPLICATION_BASE_URL=.*|VITE_APPLICATION_BASE_URL=${APP_URL}|g" $ENV_FILE
 
 build_images:
   stage: build
+  before_script:
+    - *env-setup
   script:
     - echo "Building Docker images..."
     - $COMPOSE_CMD build
@@ -23,18 +30,19 @@ build_images:
 
 run_tests:
   stage: test
+  before_script:
+    - *env-setup
   script:
     - $COMPOSE_CMD up -d
     - sleep 10
 
-    - docker exec webshark-app chmod -R 775 storage bootstrap/cache
+    - docker exec -T webshark-app chmod -R 775 storage bootstrap/cache
+    - docker exec -T webshark-app composer install --no-interaction --prefer-dist
+    - $COMPOSE_CMD run --rm node npm install
 
-    - docker exec webshark-app composer install --no-interaction --prefer-dist
-    - $COMPOSE_CMD run --rm node npm install --legacy-peer-deps
-
-    - docker exec webshark-app php artisan key:generate
-    - docker exec webshark-app php artisan migrate --force
-    - docker exec webshark-app php artisan test
+    - docker exec -T webshark-app php artisan key:generate
+    - docker exec -T webshark-app php artisan migrate --force
+    - docker exec -T webshark-app php artisan test
   after_script:
     - docker compose --env-file src/WebShark/.env down
   rules:
@@ -43,33 +51,27 @@ run_tests:
 deploy_to_production:
   stage: deploy
   environment: production
+  before_script:
+    - *env-setup
   script:
-    - echo "Patching .env for production..."
-
-    - cp src/WebShark/.env.example $ENV_FILE
-    - sed -i "s/WWWUSER=1000/WWWUSER=$(id -u)/" $ENV_FILE
-    - sed -i "s/WWWGROUP=1000/WWWGROUP=$(id -g)/" $ENV_FILE
-    - sed -i "s|^APP_URL=.*|APP_URL=http://193.219.91.104:9401|g" $ENV_FILE
-    - sed -i "s|^VITE_APPLICATION_BASE_URL=.*|VITE_APPLICATION_BASE_URL=http://193.219.91.104:9401|g" $ENV_FILE
-    
-    - echo "Deploying WebShark..."
+    - echo "Deploying WebShark to ${APP_URL}..."
     - $COMPOSE_CMD up -d --build
     
     - echo "Building frontend assets..."
-    - $COMPOSE_CMD run --rm node npm install --legacy-peer-deps
+    - $COMPOSE_CMD run --rm node npm install
     - $COMPOSE_CMD run --rm node npm run build
     
-    - docker exec webshark-app composer install --no-interaction --optimize-autoloader --no-dev
-    - docker exec webshark-app chmod -R 775 storage bootstrap/cache
-    - docker exec webshark-app php artisan key:generate --force
-    - docker exec webshark-app php artisan storage:link || echo "Already linked"
-    - docker exec webshark-app php artisan migrate --force
-    - docker exec webshark-app php artisan config:cache
-    - docker exec webshark-app php artisan route:cache
-    - docker exec webshark-app php artisan view:cache
+    - docker exec -T webshark-app composer install --no-interaction --optimize-autoloader --no-dev
+    - docker exec -T webshark-app chmod -R 775 storage bootstrap/cache
+    - docker exec -T webshark-app php artisan key:generate --force
+    - docker exec -T webshark-app php artisan storage:link || echo "Already linked"
+    - docker exec -T webshark-app php artisan migrate --force
+    - docker exec -T webshark-app php artisan config:cache
+    - docker exec -T webshark-app php artisan route:cache
+    - docker exec -T webshark-app php artisan view:cache
 
     - docker stop webshark-node || true
     
-    - echo "Application is LIVE at http://193.219.91.104:9401"
+    - echo "Application is LIVE at ${APP_URL}"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
