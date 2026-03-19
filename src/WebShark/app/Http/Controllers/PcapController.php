@@ -86,10 +86,13 @@ class PcapController extends Controller
                             ->orderBy('packet_id', 'asc')
                             ->paginate(20);
 
+        $totalBytes = Packet::where('redis_id', '=', $id)->sum('captured_packet_length');
+
         return Inertia::render('Analysis', [
             'packets' => $data,
             'status' => 'finished',
             'id' => $id,
+            'total_bytes' => (int) $totalBytes
         ]);
 
     }

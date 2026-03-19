@@ -1,8 +1,16 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { router, Head } from '@inertiajs/vue3'
+import { router, Head, Link } from '@inertiajs/vue3'
 import NavBar from '../components/NavBar.vue'
 import Footer from '../components/Footere.vue'
+
+const props = defineProps({
+    packets: Object,
+    status: String,
+    message: String,
+    id: String,
+    total_bytes: Number
+})
 
 const selectedPacket = ref(null)
 
@@ -67,7 +75,9 @@ function handlePacketClick(packet) {
 
 // Calculate total MB from packets
 const totalMB = computed(() => {
-  return (props.packets.reduce((acc, p) => acc + (p.captured_packet_length || 0), 0) / (1024 * 1024)).toFixed(2)
+  if (!props.total_bytes) return "0.00"
+  
+  return (props.total_bytes / (1024 * 1024)).toFixed(2)
 })
 
 const filteredPackets = computed(() => {
@@ -83,13 +93,6 @@ const filteredPackets = computed(() => {
         p.l4_protocol.toLowerCase().includes(search)
 
     )
-})
-
-const props = defineProps({
-    packets: Object,
-    status: String,
-    message: String,
-    id: String
 })
 
 // If it's still processing, check again in 1 second
@@ -130,11 +133,8 @@ onMounted(() => {
         </div>
     </div>
 
-
-
-    <Head title="Analysis page" />
-
-    <div class="h-screen flex flex-col bg-slate-50 overflow-hidden font-sans">
+    <div v-else class="h-screen flex flex-col bg-slate-50 overflow-hidden font-sans">
+        <Head title="Analysis page" />
 
         <NavBar class="shrink-0" />
 
@@ -217,34 +217,38 @@ onMounted(() => {
                     </div>
 
                     <!-- Pagination footer-->
-                    <div class="bg-white border-t border-slate-200 px-4 py-2 flex items-center justify-between shrink-0">
-                        <div class="text-xs text-slate-500 font-medium">
-                            Showing <span class="text-slate-900 font-bold">{{ props.packets.from }}</span> 
-                            to <span class="text-slate-900 font-bold">{{ props.packets.to }}</span> 
-                            of <span class="text-slate-900 font-bold">{{ props.packets.total }}</span> packets
+                    <div class="bg-white border-t border-slate-200 px-6 py-3 flex items-center justify-between shrink-0">
+                        
+                        <!-- Info Section -->
+                        <div class="text-xs text-slate-500">
+                            Showing <span class="font-bold text-slate-900">{{ props.packets.from }}</span> 
+                            to <span class="font-bold text-slate-900">{{ props.packets.to }}</span> 
+                            of <span class="font-bold text-slate-900">{{ props.packets.total }}</span> packets
                         </div>
 
-                        <div class="flex gap-2">
-                            <!-- Previous Page Button -->
-                            <button 
-                                @click="router.visit(props.packets.prev_page_url)"
-                                :disabled="!props.packets.prev_page_url"
-                                :class="!props.packets.prev_page_url ? 'opacity-30 cursor-not-allowed' : 'hover:bg-slate-100'"
-                                class="px-3 py-1.5 border border-slate-200 rounded text-xs font-bold text-slate-600 transition-colors"
-                            >
-                                Previous
-                            </button>
+                        <!-- Page Numbers -->
+                        <nav class="flex items-center gap-1">
+                            <template v-for="(link, index) in props.packets.links" :key="index">
+                                
+                                <div v-if="link.label === '...'" class="px-3 py-1 text-slate-400 text-xs">
+                                    ...
+                                </div>
 
-                            <!-- Next Page Button -->
-                            <button 
-                                @click="router.visit(props.packets.next_page_url)"
-                                :disabled="!props.packets.next_page_url"
-                                :class="!props.packets.next_page_url ? 'opacity-30 cursor-not-allowed' : 'hover:bg-slate-100'"
-                                class="px-3 py-1.5 border border-slate-200 rounded text-xs font-bold text-slate-600 transition-colors"
-                            >
-                                Next
-                            </button>
-                        </div>
+                                <Link
+                                    v-else
+                                    :href="link.url || '#'"
+                                    v-html="link.label"
+                                    :class="[
+                                        'px-3 py-1.5 rounded text-xs font-bold transition-all border',
+                                        link.active 
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
+                                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
+                                        !link.url ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''
+                                    ]"
+                                    preserve-scroll
+                                />
+                            </template>
+                        </nav>
                     </div>
 
                 </main>
@@ -301,7 +305,7 @@ onMounted(() => {
                 <div class="max-w-6xl mx-auto">
                     <h2 class="text-2xl font-bold text-slate-900 mb-6">Traffic Overview</h2>
                     
-                    <!-- Placeholder for your Stats Cards -->
+                    <!-- Status cards -->
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                             <p class="text-xs font-bold text-slate-400 uppercase">Total Data</p>
@@ -311,7 +315,7 @@ onMounted(() => {
                         </div>
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                             <p class="text-xs font-bold text-slate-400 uppercase">Packets Captured</p>
-                            <p class="text-3xl font-black text-slate-900">{{ props.packets.length }}</p>
+                            <p class="text-3xl font-black text-slate-900">{{ props.packets.total }}</p>
                         </div>
                     </div>
 
