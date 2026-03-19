@@ -10,6 +10,55 @@ const filterText = ref('')
 
 const activeTab = ref('packets') // Options: 'packets', 'overview', 'conversations'
 
+const detailSections = computed(() => {
+  if (!selectedPacket.value) return []
+  
+  const p = selectedPacket.value
+  
+  return [
+    {
+      title: "Frame",
+      fields: [
+        { label: "ID", value: p.packet_id },
+        { label: "Length", value: `${p.captured_packet_length} bytes` },
+        { label: "Time", value: "0.000s" }, // ToDo: add real time
+      ]
+    },
+    {
+      title: "Network",
+      fields: [
+        { label: "L3 Protocol", value: p.l3_protocol },
+        { label: "Source IP", value: p.src_ip },
+        { label: "Destination IP", value: p.dst_ip },
+      ]
+    },
+    {
+      title: "Transport",
+      fields: [
+        { label: "L4 Protocol", value: p.l4_protocol },
+        { label: "Source Port", value: p.src_port },
+        { label: "Dest Port", value: p.dst_port },
+      ]
+    },
+    {
+      title: "Application",
+      fields: [
+        { label: "L7 Protocol", value: p.l7_protocol || 'N/A' },
+      ]
+    }
+  ]
+})
+
+// For protocol badge colors
+const getProtoColor = (proto) => {
+    const colors = {
+        'TCP': 'bg-blue-100 text-blue-700 border-blue-200',
+        'UDP': 'bg-purple-100 text-purple-700 border-purple-200',
+        'ICMP': 'bg-pink-100 text-pink-700 border-pink-200'
+    }
+    return colors[proto] || 'bg-slate-100 text-slate-700 border-slate-200'
+}
+
 // Function to handle the click
 function handlePacketClick(packet) {
     // If they click the same one again, maybe deselect it? 
@@ -74,6 +123,7 @@ onMounted(() => {
         
         <!-- The Content -->
         <div class="relative z-10 flex flex-col items-center">
+
             <!-- Spinner -->
             <div class="w-16 h-16 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-8"></div>
             
@@ -155,8 +205,8 @@ onMounted(() => {
                         <div class="text-slate-800 font-medium">{{ packet.src_ip }}</div>
                         <div class="text-slate-800">{{ packet.dst_ip }}</div>
                         <div>
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200 uppercase">
-                            {{ packet.l4_protocol }}
+                            <span :class="getProtoColor(packet.l4_protocol)" class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
+                                {{ packet.l4_protocol  }}
                             </span>
                         </div>
                         <div class="text-slate-500 text-xs">{{ packet.captured_packet_length }}</div>
@@ -173,27 +223,46 @@ onMounted(() => {
 
                 <!-- The right side -->
                 <aside class="w-[600px] bg-white overflow-y-auto p-6">
-                    <div v-if="selectedPacket">
-                    <h2 class="text-xl font-bold mb-6 text-slate-900">Packet #{{ selectedPacket.packet_id }}</h2>
                     
-                    <div class="space-y-4">
-                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                            <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Source IP</p>
-                            <p class="font-mono text-sm">{{ selectedPacket.src_ip }}</p>
+                    <!-- Content if packet is selected -->
+                    <div v-if="selectedPacket" class="flex-1 overflow-y-auto p-5">
+                        
+                        <!-- Header with ID and Protocol Badge -->
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-tight">Packet #{{ selectedPacket.packet_id }}</h3>
+                            <span :class="getProtoColor(selectedPacket.l4_protocol)" class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
+                                {{ selectedPacket.l4_protocol }}
+                            </span>
                         </div>
-                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                            <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Destination IP</p>
-                            <p class="font-mono text-sm">{{ selectedPacket.dst_ip }}</p>
+
+                        <!-- Sections (uses 'const detailSections') -->
+                        <div v-for="section in detailSections" :key="section.title" class="mb-6">
+                            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-1">
+                                {{ section.title }}
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <div v-for="field in section.fields" :key="field.label" class="flex justify-between items-start gap-4">
+                                    <span class="text-xs text-slate-400 font-medium whitespace-nowrap">{{ field.label }}</span>
+                                    <span class="text-xs font-mono font-bold text-slate-800 text-right break-all">
+                                        {{ field.value }}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                            <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Protocol</p>
-                            <p class="font-mono text-sm text-blue-600 font-bold">{{ selectedPacket.l4_protocol }}</p>
+
+                        <!-- Raw Hex -->
+                        <div class="mt-8">
+                            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Raw Hex</div>
+                            <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 font-mono text-[11px] text-slate-600 leading-relaxed shadow-sm">
+                                {{ selectedPacket.raw_hex || 'No raw data available' }}
+                            </div>
                         </div>
-                    </div>
                     </div>
 
+                    <!-- No Packet Selected -->
                     <div v-else class="h-full flex flex-col items-center justify-center text-slate-400 italic">
-                    <p>Select a packet to view details</p>
+                        <p>Select a packet to view details</p>
                     </div>
                 </aside>
 
