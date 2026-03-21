@@ -91,17 +91,17 @@ class PcapController extends Controller
 
         // If we are here, everything went well
         $props['packets'] = Packet::where('redis_id', $id)
-                                    ->orderBy('packet_id', 'asc')
+                                    ->orderBy('packet_number', 'asc')
                                     ->paginate(20);
         
         $props['total_bytes'] = (int) Packet::where('redis_id', $id)
                                             ->sum('captured_packet_length');
 
         $firstPacket = Packet::where('redis_id', $id)
-                               ->orderBy('packet_id', 'asc')
+                               ->orderBy('packet_number', 'asc')
                                ->first();
 
-        $lastPacket = Packet::where('redis_id', $id)->orderBy('packet_id', 'desc')->first();
+        $lastPacket = Packet::where('redis_id', $id)->orderBy('packet_number', 'desc')->first();
 
         $props['first_packet_time'] = $firstPacket ? (float) $firstPacket->timestamp : 0;
 

@@ -41,7 +41,7 @@ const detailSections = computed(() => {
     {
       title: "Frame",
       fields: [
-        { label: "ID", value: p.packet_id },
+        { label: "ID", value: p.packet_number },
         { label: "Length", value: `${p.captured_packet_length} bytes` },
         { label: "Time", value: `${formatTime(p.timestamp)}s` },
       ]
@@ -218,7 +218,7 @@ onMounted(() => {
                             @click="handlePacketClick(packet)"
                             :class="{ 'bg-blue-100': selectedPacket === packet }"
                             class="grid grid-cols-[48px_90px_130px_130px_80px_60px_1fr] px-4 py-2 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono">
-                        <div class="text-slate-400">{{ packet.packet_id }}</div>
+                        <div class="text-slate-400">{{ packet.packet_number }}</div>
                         <div class="text-slate-500 text-xs">{{ formatTime(packet.timestamp) }}s</div>
                         <div class="text-slate-800 font-medium">{{ packet.src_ip }}</div>
                         <div class="text-slate-800">{{ packet.dst_ip }}</div>
@@ -283,7 +283,7 @@ onMounted(() => {
                         
                         <!-- Header with ID and Protocol Badge -->
                         <div class="flex items-center justify-between mb-6">
-                            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-tight">Packet #{{ selectedPacket.packet_id }}</h3>
+                            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-tight">Packet #{{ selectedPacket.packet_number }}</h3>
                             <span :class="getProtoColor(selectedPacket.l4_protocol)" class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
                                 {{ selectedPacket.l4_protocol }}
                             </span>

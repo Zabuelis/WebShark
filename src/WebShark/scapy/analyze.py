@@ -212,7 +212,8 @@ with PcapReader(file_path) as reader:
     row_limit = 1000
     query = """INSERT INTO packet 
         (
-            redis_id, 
+            redis_id,
+            packet_number, 
             l3_protocol,
             src_ip, 
             dst_ip, 
@@ -223,13 +224,14 @@ with PcapReader(file_path) as reader:
             l7_protocol,
             timestamp,
             raw_hex
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
     rows = []
     for index, pkt in enumerate(reader):
         result = analyze_packet(pkt, index)
         # Make a list of 1000 tuples and then commit to DB
         rows.append((
             redis_id, 
+            index + 1,
             result["layers"]["L3"].get("protocol"),
             result["layers"]["L3"].get("src"), 
             result["layers"]["L3"].get("dst"), 
