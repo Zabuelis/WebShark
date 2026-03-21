@@ -166,6 +166,7 @@ def analyze_packet(pkt, index):
     result = {
         "id": index,
         "length": len(pkt),
+        "timestamp": float(pkt.time),
         "layers": {
             "L3": {},
             "L4": {},
@@ -222,8 +223,10 @@ with PcapReader(file_path) as reader:
             src_port, 
             dst_port,
             l4_protocol,
-            l7_protocol
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+            l7_protocol,
+            timestamp,
+            raw_hex
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
     rows = []
     for index, pkt in enumerate(reader):
         result = analyze_packet(pkt, index)
@@ -237,7 +240,9 @@ with PcapReader(file_path) as reader:
             result["layers"]["L4"].get("src_port"), 
             result["layers"]["L4"].get("dst_port"),
             result["layers"]["L4"].get("protocol"),
-            result["layers"]["L7"].get("protocol")
+            result["layers"]["L7"].get("protocol"),
+            result["timestamp"],
+            result["hex_dump"]
         ))
 
         # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required

@@ -9,8 +9,22 @@ const props = defineProps({
     status: String,
     message: String,
     id: String,
-    total_bytes: Number
+    total_bytes: Number,
+    first_packet_time: Number,
+    last_packet_time: Number
 })
+
+const captureDuration = computed(() => {
+  if (!props.first_packet_time || !props.last_packet_time) return "0.00"
+  const diff = props.last_packet_time - props.first_packet_time
+  return diff.toFixed(3)
+})
+
+const formatTime = (packetTimestamp) => {
+    if (!packetTimestamp || !props.first_packet_time) return "0.000000"
+    const relative = parseFloat(packetTimestamp) - props.first_packet_time
+    return relative.toFixed(6)
+}
 
 const selectedPacket = ref(null)
 
@@ -29,7 +43,7 @@ const detailSections = computed(() => {
       fields: [
         { label: "ID", value: p.packet_id },
         { label: "Length", value: `${p.captured_packet_length} bytes` },
-        { label: "Time", value: "0.000s" }, // ToDo: add real time
+        { label: "Time", value: `${formatTime(p.timestamp)}s` },
       ]
     },
     {
@@ -51,7 +65,8 @@ const detailSections = computed(() => {
     {
       title: "Application",
       fields: [
-        { label: "L7 Protocol", value: p.l7_protocol || 'N/A' },
+        { label: "L7 Protocol", value: p.l7_protocol },
+        { label: "Info", value: p.info },
       ]
     }
   ]
@@ -69,14 +84,12 @@ const getProtoColor = (proto) => {
 
 // Function to handle the click
 function handlePacketClick(packet) {
-    // If they click the same one again, maybe deselect it? 
-    selectedPacket.value = packet
+  selectedPacket.value = selectedPacket.value === packet ? null : packet
 }
 
 // Calculate total MB from packets
 const totalMB = computed(() => {
   if (!props.total_bytes) return "0.00"
-  
   return (props.total_bytes / (1024 * 1024)).toFixed(2)
 })
 
@@ -95,12 +108,12 @@ const filteredPackets = computed(() => {
     )
 })
 
-// If it's still processing, check again in 1 second
+// If it's still processing, check again in 1 second (so user does not have to refresh manually)
 onMounted(() => {
   if (props.status === 'dispatching') {
     const interval = setInterval(() => {
       router.reload({ 
-        only: ['packets', 'status', 'message', 'total_bytes', 'id'],
+        only: ['packets', 'status', 'message', 'total_bytes', 'id', 'first_packet_time', 'last_packet_time'],
         onSuccess: () => {
           if (props.status !== 'dispatching') {
             clearInterval(interval)
@@ -206,7 +219,7 @@ onMounted(() => {
                             :class="{ 'bg-blue-100': selectedPacket === packet }"
                             class="grid grid-cols-[48px_90px_130px_130px_80px_60px_1fr] px-4 py-2 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono">
                         <div class="text-slate-400">{{ packet.packet_id }}</div>
-                        <div class="text-slate-500 text-xs">0.000s</div>
+                        <div class="text-slate-500 text-xs">{{ formatTime(packet.timestamp) }}s</div>
                         <div class="text-slate-800 font-medium">{{ packet.src_ip }}</div>
                         <div class="text-slate-800">{{ packet.dst_ip }}</div>
                         <div>
@@ -215,7 +228,7 @@ onMounted(() => {
                             </span>
                         </div>
                         <div class="text-slate-500 text-xs">{{ packet.captured_packet_length }}</div>
-                        <div class="text-slate-600 truncate text-xs italic">Raw packet data...</div>
+                        <div class="text-slate-600 truncate text-xs italic">Packet data...</div>
                         </div>
 
 
@@ -296,7 +309,7 @@ onMounted(() => {
                         <div class="mt-8">
                             <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Raw Hex</div>
                             <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 font-mono text-[11px] text-slate-600 leading-relaxed shadow-sm">
-                                {{ selectedPacket.raw_hex || 'No raw data available' }}
+                                {{ selectedPacket.raw_hex }}
                             </div>
                         </div>
                     </div>
@@ -316,16 +329,26 @@ onMounted(() => {
                     
                     <!-- Status cards -->
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                             <p class="text-xs font-bold text-slate-400 uppercase">Total Data</p>
                             <p class="text-3xl font-black text-blue-600">
                                 {{ totalMB }} MB
                             </p>
                         </div>
+
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                             <p class="text-xs font-bold text-slate-400 uppercase">Packets Captured</p>
-                            <p class="text-3xl font-black text-slate-900">{{ props.packets.total }}</p>
+                            <p class="text-3xl font-black text-blue-600">{{ props.packets.total }}</p>
                         </div>
+
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                            <p class="text-xs font-bold text-slate-400 uppercase">Capture Duration</p>
+                            <p class="text-3xl font-black text-blue-600">
+                                {{ captureDuration }} <span class="text-xl text-slate-400">sec</span>
+                            </p>
+                        </div>
+
                     </div>
 
                 </div>

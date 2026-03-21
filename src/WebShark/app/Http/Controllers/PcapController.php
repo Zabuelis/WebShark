@@ -74,6 +74,8 @@ class PcapController extends Controller
             'message' => '',
             'packets' => null,
             'total_bytes' => 0,
+            'first_packet_time' => 0,
+            'last_packet_time' => 0,
         ];
 
         // Check the status of the job
@@ -94,6 +96,16 @@ class PcapController extends Controller
         
         $props['total_bytes'] = (int) Packet::where('redis_id', $id)
                                             ->sum('captured_packet_length');
+
+        $firstPacket = Packet::where('redis_id', $id)
+                               ->orderBy('packet_id', 'asc')
+                               ->first();
+
+        $lastPacket = Packet::where('redis_id', $id)->orderBy('packet_id', 'desc')->first();
+
+        $props['first_packet_time'] = $firstPacket ? (float) $firstPacket->timestamp : 0;
+
+        $props['last_packet_time'] = $lastPacket ? (float) $lastPacket->timestamp : 0;
 
         return Inertia::render('Analysis', $props);
     }

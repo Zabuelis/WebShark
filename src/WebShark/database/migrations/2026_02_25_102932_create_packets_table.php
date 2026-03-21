@@ -25,8 +25,9 @@ return new class extends Migration
             $table->integer('tcp_window')->nullable(true);
             $table->integer('original_packet_length')->nullable(true);
             $table->integer('captured_packet_length')->nullable(true);
-            $table->time('timestamp', precision: 0)->nullable(true);
-
+            $table->decimal('timestamp', 20, 6)->nullable();
+            $table->text('raw_hex')->nullable();
+            
             $table->foreign('redis_id')->references('redis_id')->on('redis_job')->onDelete('cascade');
         });
     }
