@@ -85,7 +85,7 @@ class PcapController extends Controller
         }
 
         if ($status === 'failed') {
-            $props['message'] = 'Analysis failed, please retry later.';
+            $props['message'] = $job->error_message ?? 'Analysis failed due to an system error. Error code: 3';
             return Inertia::render('Analysis', $props);
         }
 

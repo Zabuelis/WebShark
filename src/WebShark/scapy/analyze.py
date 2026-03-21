@@ -205,10 +205,7 @@ conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={
 cursor = conn.cursor()
 
 if not validate_pcap(file_path):
-    print(
-        "ERROR:"
-        + json.dumps({"error": "Not a valid PCAP file"})
-    )
+    print(json.dumps({"error": "Analysis failed due to an invalid PCAP file"}))
     sys.exit(1)
 
 with PcapReader(file_path) as reader:

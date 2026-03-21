@@ -40,12 +40,19 @@ class AnalyzePcap implements ShouldQueue
             ->run("$pythonPath $scriptPath $this->filePath $this->uuid");
 
         if (!$result->successful()) {
+            $errorMessage = $this->extractErrorMessage(
+                $result->output(),
+                $result->errorOutput()
+            );
+
             RedisJob::where('redis_id', '=', $this->uuid)->update([
                 'status' => 'failed',
+                'error_message' => $errorMessage,
                 'expires_at' => now()->addMinutes(10),
             ]);
-            Log::error("Python error for {$this->uuid}: " . $result->errorOutput());
-           $this->removeFile();
+
+            Log::error("Python error for {$this->uuid}: {$errorMessage}");
+            $this->removeFile();
             return;
         }
 
@@ -61,6 +68,7 @@ class AnalyzePcap implements ShouldQueue
     {
         RedisJob::where('redis_id', '=', $this->uuid)->update([
             'status' => 'failed',
+            'error_message' => $exception?->getMessage() ?? 'Analysis failed due to an system error. Error code: 1',
             'expires_at' => now()->addMinutes(10),
         ]);
         $this->removeFile();
@@ -70,6 +78,25 @@ class AnalyzePcap implements ShouldQueue
         if(file_exists($this->filePath)){
             unlink($this->filePath);
         }
+    }
+
+    /**
+     * Try to extract a user-friendly error from the Python script's output.
+     */
+    private function extractErrorMessage(string $stdout, string $stderr): string
+    {
+        // First, try parsing structured JSON from stdout
+        $decoded = json_decode(trim($stdout), true);
+        if ($decoded && isset($decoded['error'])) {
+            return $decoded['error'];
+        }
+
+        // Fall back to stderr
+        if (!empty(trim($stderr))) {
+            return trim($stderr);
+        }
+
+        return 'Analysis failed due to an system error. Error code: 2';
     }
 
 }
