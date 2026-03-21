@@ -62,39 +62,40 @@ class PcapController extends Controller
         }
     }
 
-    public function show(String $id){
-        // Return only the status column from redis_job table
-        $jobStatus = RedisJob::where('redis_id', '=', $id)->pluck('status')->first();
+    public function show(String $id)
+    {
+        $job = RedisJob::where('redis_id', $id)->firstOrFail();
+        $status = $job->status;
+
+        // Default props
+        $props = [
+            'id' => $id,
+            'status' => $status,
+            'message' => '',
+            'packets' => null,
+            'total_bytes' => 0,
+        ];
 
         // Check the status of the job
-        if ($jobStatus === 'dispatching') {
-            return Inertia::render('Analysis', [
-                'status' => 'dispatching',
-                'message' => 'Still analyzing, try refreshing in a few seconds.',
-                'id' => $id,
-            ]);
-        } else if ($jobStatus === 'failed'){
-            return Inertia::render('Analysis', [
-                'status' => 'failed',
-                'message' => 'Analysis failed, please retry later.',
-                'id' => $id,
-            ]);
+        if ($status === 'dispatching') {
+            $props['message'] = 'Analyzing PCAP... Please wait.';
+            return Inertia::render('Analysis', $props);
         }
 
-        // Return packets related to the job id from packet table
-        $data = Packet::where('redis_id', '=', $id)
-                            ->orderBy('packet_id', 'asc')
-                            ->paginate(20);
+        if ($status === 'failed') {
+            $props['message'] = 'Analysis failed, please retry later.';
+            return Inertia::render('Analysis', $props);
+        }
 
-        $totalBytes = Packet::where('redis_id', '=', $id)->sum('captured_packet_length');
+        // If we are here, everything went well
+        $props['packets'] = Packet::where('redis_id', $id)
+                                    ->orderBy('packet_id', 'asc')
+                                    ->paginate(20);
+        
+        $props['total_bytes'] = (int) Packet::where('redis_id', $id)
+                                            ->sum('captured_packet_length');
 
-        return Inertia::render('Analysis', [
-            'packets' => $data,
-            'status' => 'finished',
-            'id' => $id,
-            'total_bytes' => (int) $totalBytes
-        ]);
-
+        return Inertia::render('Analysis', $props);
     }
 
     /**

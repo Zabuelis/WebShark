@@ -100,7 +100,7 @@ onMounted(() => {
   if (props.status === 'dispatching') {
     const interval = setInterval(() => {
       router.reload({ 
-        only: ['packets', 'status'],
+        only: ['packets', 'status', 'message', 'total_bytes', 'id'],
         onSuccess: () => {
           if (props.status !== 'dispatching') {
             clearInterval(interval)
@@ -116,7 +116,7 @@ onMounted(() => {
 <template>
     <Head title="Analyzing Packets..." />
 
-    <!-- This only shows if the status is 'dispatching' -->
+    <!-- Show this only if the status is 'dispatching' -->
     <div v-if="props.status === 'dispatching'" 
          class="fixed inset-0 z-50 bg-slate-900 flex flex-col items-center justify-center text-center px-6">
         
@@ -128,11 +128,20 @@ onMounted(() => {
             
             <!-- Status Message -->
             <p class="text-slate-400 font-mono text-sm max-w-md leading-relaxed">
-                Status: <span class="animate-pulse">Analyzing PCAP...</span>
+                Status: <span class="animate-pulse">{{ props.message }}</span>
             </p>
         </div>
     </div>
 
+    <!-- Show this only if the status is 'failed' -->
+    <div v-else-if="props.status === 'failed'" class="flex flex-col items-center justify-center h-screen bg-slate-900 text-white">
+        <p class="text-slate-400 mt-2">{{ props.message }}</p>
+        <Link :href="route('home')" class="mt-6 px-4 py-2 bg-blue-600 rounded-lg">
+            Go back to home page
+        </Link>
+    </div>
+
+    <!-- Show this only if the status is 'completed' -->
     <div v-else class="h-screen flex flex-col bg-slate-50 overflow-hidden font-sans">
         <Head title="Analysis page" />
 
