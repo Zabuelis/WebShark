@@ -200,7 +200,7 @@ onMounted(() => {
                     </div>
 
                     <!-- Packet headers -->
-                    <div class="grid grid-cols-[48px_90px_130px_130px_80px_60px_1fr] px-4 py-2 bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <div class="grid grid-cols-[minmax(60px,0.5fr)_minmax(90px,0.8fr)_minmax(140px,1.2fr)_minmax(140px,1.2fr)_80px_70px_2fr] gap-x-4 px-6 py-2 bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                         <div>ID</div>
                         <div>Time</div>
                         <div>Source</div>
@@ -217,7 +217,7 @@ onMounted(() => {
                             :key="packet.packet_id"
                             @click="handlePacketClick(packet)"
                             :class="{ 'bg-blue-100': selectedPacket === packet }"
-                            class="grid grid-cols-[48px_90px_130px_130px_80px_60px_1fr] px-4 py-2 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono">
+                            class="grid grid-cols-[minmax(60px,0.5fr)_minmax(90px,0.8fr)_minmax(140px,1.2fr)_minmax(140px,1.2fr)_80px_70px_2fr] gap-x-4 px-6 py-2 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono">
                         <div class="text-slate-400">{{ packet.packet_number }}</div>
                         <div class="text-slate-500 text-xs">{{ formatTime(packet.timestamp) }}s</div>
                         <div class="text-slate-800 font-medium">{{ packet.src_ip }}</div>

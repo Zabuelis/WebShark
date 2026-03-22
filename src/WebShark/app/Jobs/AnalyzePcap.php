@@ -96,7 +96,7 @@ class AnalyzePcap implements ShouldQueue
             return trim($stderr);
         }
 
-        return 'Analysis failed due to an system error. Error code: 2';
+        return 'Analysis failed due to an system error. Unknown error occurred.';
     }
 
 }
