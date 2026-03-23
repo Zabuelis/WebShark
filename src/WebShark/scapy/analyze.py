@@ -4,6 +4,7 @@ import psycopg2
 import psycopg2.extras
 import json
 from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP, DNS
+from scapy.layers.http import HTTPRequest, HTTPResponse
 
 # So, in our case we have layers: L3, L4 and L7. Each layer has its own registry.
 # The registry is a dict that maps the protocol name to the function that can handle it.
@@ -111,7 +112,33 @@ def handle_dns(pkt):
         "query": query,
     }
 
+# Handles only HTTP 1.0/1.1
+def handle_http(pkt):
+    http_header = {
+        "protocol": "HTTP", 
+        "method": None,
+        "version": None,
+        "path": None,
+        "status_code": None,
+        "reason_phrase": None,
+    }
+
+    if HTTPRequest in pkt:
+        http = pkt[HTTPRequest]
+        http_header.update({"method": http.Method.decode(errors="replace")})
+        http_header.update({"path": http.Path.decode(errors="replace")})
+        http_header.update({"version": http.Http_Version.decode(errors="replace")})
+    elif HTTPResponse in pkt:
+        http = pkt[HTTPResponse]
+        http_header.update({"status_code": http.Status_Code.decode(errors="replace")})
+        http_header.update({"reason_phrase": http.Reason_Phrase.decode(errors="replace")})
+        http_header.update({"version": http.Http_Version.decode(errors="replace")})
+    return http_header
+
+
+
 register("L7", "DNS", handle_dns)
+register("L7", "HTTP", handle_http)
 
 # Hex dump fallback for unknown protocols
 def get_hex_dump(pkt):
@@ -138,9 +165,13 @@ def identify_l4(pkt):
         return "ICMP"
     return None
 
-def identify_l7(pkt):
+def identify_l7(pkt, result):
     if DNS in pkt:
         return "DNS"
+    src_port = result.get("src_port")
+    dst_port = result.get("dst_port")
+    if HTTPRequest or HTTPResponse in (pkt):
+        return "HTTP"
     # ToDo: Add more L7 protocols (HTTP, TLS, ...)
     # if HTTP in pkt: return "HTTP" (Scapy has no HTTP layer by default)
     return None
@@ -185,7 +216,7 @@ def analyze_packet(pkt, index):
         result["layers"]["L4"] = handlers["L4"][l4_name](pkt)
 
     # L7
-    l7_name = identify_l7(pkt)
+    l7_name = identify_l7(pkt, result["layers"]["L4"])
     if l7_name and l7_name in handlers["L7"]:
         result["layers"]["L7"] = handlers["L7"][l7_name](pkt)
 
@@ -199,9 +230,6 @@ dbName = os.getenv('DB_DATABASE')
 dbUser = os.getenv('DB_USERNAME')
 dbPass = os.getenv('DB_PASSWORD')
 dbHost = os.getenv('DB_HOST')
-# Establish connection to the DB
-conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={dbPass}')
-cursor = conn.cursor()
 
 if not validate_pcap(file_path):
     print(
@@ -209,6 +237,10 @@ if not validate_pcap(file_path):
         + json.dumps({"error": "Not a valid PCAP file"})
     )
     sys.exit(1)
+
+# Establish connection to the DB
+conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={dbPass}')
+cursor = conn.cursor()
 
 with PcapReader(file_path) as reader:
     row_limit = 1000
@@ -222,8 +254,14 @@ with PcapReader(file_path) as reader:
             src_port, 
             dst_port,
             l4_protocol,
-            l7_protocol
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+            l7_protocol,
+            http_method,
+            http_version,
+            http_path,
+            http_status_code,
+            http_reason_phrase
+
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
     rows = []
     for index, pkt in enumerate(reader):
         result = analyze_packet(pkt, index)
@@ -237,7 +275,12 @@ with PcapReader(file_path) as reader:
             result["layers"]["L4"].get("src_port"), 
             result["layers"]["L4"].get("dst_port"),
             result["layers"]["L4"].get("protocol"),
-            result["layers"]["L7"].get("protocol")
+            result["layers"]["L7"].get("protocol"),
+            result["layers"]["L7"].get("method"),
+            result["layers"]["L7"].get("version"),
+            result["layers"]["L7"].get("path"),
+            result["layers"]["L7"].get("status_code"),
+            result["layers"]["L7"].get("reason_phrase")
         ))
 
         # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required
@@ -251,6 +294,7 @@ with PcapReader(file_path) as reader:
 if len(rows) > 0:
     psycopg2.extras.execute_batch(cursor, query, rows)
     conn.commit()
+
 # Close DB connection
 cursor.close()
 conn.close()
