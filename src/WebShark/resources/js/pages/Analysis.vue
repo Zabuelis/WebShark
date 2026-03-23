@@ -182,15 +182,24 @@ onMounted(() => {
     <div v-else class="h-screen flex flex-col bg-slate-50 overflow-hidden font-sans">
         <Head title="Analysis page" />
 
-        <NavBar 
-            class="shrink-0" 
-            :showShareButton="true" 
-            :onCopy="copyUrl" 
-        />
+        <NavBar/>
 
         <!-- Expiration Notice -->
-        <div v-if="expires_at" class="px-6 py-2 bg-amber-50 text-amber-700 text-xs border-b border-amber-100">
-            Analysis link expires in: <strong>{{ expires_at }}</strong>
+        <div v-if="expires_at" class="px-6 py-2 bg-amber-50 text-amber-700 text-xs border-b border-amber-100 flex items-center justify-between">
+            
+            <span>
+                Analysis link expires in: <strong>{{ expires_at }}</strong>
+            </span>
+
+            <button 
+                @click="copyUrl"
+                class="flex items-center gap-1.5 px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded border border-amber-200 transition-colors font-medium"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                </svg>
+                Copy Link
+            </button>
         </div>
 
         <!-- Tab bar-->
