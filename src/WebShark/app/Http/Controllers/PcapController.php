@@ -71,6 +71,7 @@ class PcapController extends Controller
         $props = [
             'id' => $id,
             'status' => $status,
+            'progress' => $job->progress_percentage,
             'message' => '',
             'packets' => null,
             'total_bytes' => 0,

@@ -1,5 +1,6 @@
 import sys
 import os
+from time import sleep
 import psycopg2
 import psycopg2.extras
 import json
@@ -208,6 +209,8 @@ if not validate_pcap(file_path):
     print(json.dumps({"error": "Analysis failed due to an invalid PCAP file"}))
     sys.exit(1)
 
+total_size = os.path.getsize(file_path)
+
 with PcapReader(file_path) as reader:
     row_limit = 1000
     query = """INSERT INTO packet 
@@ -228,6 +231,24 @@ with PcapReader(file_path) as reader:
     rows = []
     for index, pkt in enumerate(reader):
         result = analyze_packet(pkt, index)
+
+        if index % 500 == 0:
+            current_pos = reader.f.tell()
+            
+            progress = 0
+            if total_size > 0:
+                progress = min(int((current_pos / total_size) * 100), 100)
+            
+            try:
+                cursor.execute(
+                    "UPDATE redis_job SET progress_percentage = %s WHERE redis_id = %s", 
+                    (progress, redis_id)
+                )
+                conn.commit()
+            except Exception as e:
+                print(json.dumps({"error": "Failed to update progress: " + str(e)}))
+
+
         # Make a list of 1000 tuples and then commit to DB
         rows.append((
             redis_id, 
@@ -251,6 +272,13 @@ with PcapReader(file_path) as reader:
             psycopg2.extras.execute_batch(cursor, query, rows)
             conn.commit()
             rows.clear()
+
+cursor.execute(
+    "UPDATE redis_job SET progress_percentage = 100 WHERE redis_id = %s", 
+    (redis_id,)
+)
+conn.commit()
+sleep(0.5) # Ensure the last update is visible in the UI before we close the connection
 
 if len(rows) > 0:
     psycopg2.extras.execute_batch(cursor, query, rows)

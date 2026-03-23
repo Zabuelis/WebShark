@@ -9,6 +9,7 @@ const props = defineProps({
     status: String,
     message: String,
     id: String,
+    progress: Number,
     total_bytes: Number,
     first_packet_time: Number,
     last_packet_time: Number
@@ -108,19 +109,19 @@ const filteredPackets = computed(() => {
     )
 })
 
-// If it's still processing, check again in 1 second (so user does not have to refresh manually)
+// If it's still processing, check again in 0.5 second (so user does not have to refresh manually)
 onMounted(() => {
   if (props.status === 'dispatching') {
     const interval = setInterval(() => {
       router.reload({ 
-        only: ['packets', 'status', 'message', 'total_bytes', 'id', 'first_packet_time', 'last_packet_time'],
+        only: ['packets', 'status', 'message', 'total_bytes', 'id', 'first_packet_time', 'last_packet_time', 'progress'],
         onSuccess: () => {
           if (props.status !== 'dispatching') {
             clearInterval(interval)
           }
         }
       })
-    }, 1000)
+    }, 500)
   }
 })
 </script>
@@ -143,6 +144,15 @@ onMounted(() => {
             <p class="text-slate-400 font-mono text-sm max-w-md leading-relaxed">
                 Status: <span class="animate-pulse">{{ props.message }}</span>
             </p>
+
+            <!-- Progress Bar -->
+            <div class="w-64 bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700">
+                <div class="bg-blue-500 h-full transition-all duration-500 ease-out" 
+                     :style="{ width: props.progress + '%' }">
+                </div>
+            </div>
+            <p class="text-slate-500 text-xs mt-2 font-mono">{{ props.progress }}% processed</p>
+
         </div>
     </div>
 
