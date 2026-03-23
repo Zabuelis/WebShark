@@ -72,6 +72,12 @@ class PcapController extends Controller
             'id' => $id,
             'status' => $status,
             'progress' => $job->progress_percentage,
+            'expires_at' => $job->expires_at 
+            ? \Carbon\Carbon::parse($job->expires_at)->diffForHumans([
+                'parts' => 2,
+                'join' => true,
+            ]) 
+            : null,
             'message' => '',
             'packets' => null,
             'total_bytes' => 0,

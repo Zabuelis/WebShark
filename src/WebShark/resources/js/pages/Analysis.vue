@@ -12,8 +12,22 @@ const props = defineProps({
     progress: Number,
     total_bytes: Number,
     first_packet_time: Number,
-    last_packet_time: Number
+    last_packet_time: Number,
+    expires_at: String
 })
+
+const showToast = ref(false)
+
+const copyUrl = () => {
+    navigator.clipboard.writeText(window.location.href)
+        .then(() => {
+            showToast.value = true
+            setTimeout(() => {
+                showToast.value = false
+            }, 2000)
+        })
+        .catch(err => console.error('Failed to copy: ', err));
+}
 
 const captureDuration = computed(() => {
   if (!props.first_packet_time || !props.last_packet_time) return "0.00"
@@ -114,7 +128,7 @@ onMounted(() => {
   if (props.status === 'dispatching') {
     const interval = setInterval(() => {
       router.reload({ 
-        only: ['packets', 'status', 'message', 'total_bytes', 'id', 'first_packet_time', 'last_packet_time', 'progress'],
+        only: ['packets', 'status', 'message', 'total_bytes', 'id', 'first_packet_time', 'last_packet_time', 'progress', 'expires_at'],
         onSuccess: () => {
           if (props.status !== 'dispatching') {
             clearInterval(interval)
@@ -168,7 +182,16 @@ onMounted(() => {
     <div v-else class="h-screen flex flex-col bg-slate-50 overflow-hidden font-sans">
         <Head title="Analysis page" />
 
-        <NavBar class="shrink-0" />
+        <NavBar 
+            class="shrink-0" 
+            :showShareButton="true" 
+            :onCopy="copyUrl" 
+        />
+
+        <!-- Expiration Notice -->
+        <div v-if="expires_at" class="px-6 py-2 bg-amber-50 text-amber-700 text-xs border-b border-amber-100">
+            Analysis link expires in: <strong>{{ expires_at }}</strong>
+        </div>
 
         <!-- Tab bar-->
         <div class="bg-white border-b border-slate-200 px-6 flex gap-8 shrink-0">
@@ -373,6 +396,24 @@ onMounted(() => {
 
         </div>
 
+        <!-- Toast -->
+        <transition
+            enter-active-class="transition duration-300 ease-out"
+            enter-from-class="transform translate-y-2 opacity-0"
+            enter-to-class="transform translate-y-0 opacity-100"
+            leave-active-class="transition duration-200 ease-in"
+            leave-from-class="transform translate-y-0 opacity-100"
+            leave-to-class="transform translate-y-2 opacity-0"
+        >
+            <div v-if="showToast" 
+                class="fixed bottom-6 right-6 z-50 bg-slate-800 text-white px-4 py-2 rounded-lg shadow-xl flex items-center gap-2 text-sm font-medium">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                Link copied to clipboard
+            </div>
+        </transition>
+        
     </div>
 
 </template>
