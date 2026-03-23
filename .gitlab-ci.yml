@@ -36,13 +36,13 @@ run_tests:
     - $COMPOSE_CMD up -d
     - sleep 10
 
-    - docker exec -T webshark-app chmod -R 775 storage bootstrap/cache
-    - docker exec -T webshark-app composer install --no-interaction --prefer-dist
+    - docker exec webshark-app chmod -R 775 storage bootstrap/cache
+    - docker exec webshark-app composer install --no-interaction --prefer-dist
     - $COMPOSE_CMD run --rm node npm install
 
-    - docker exec -T webshark-app php artisan key:generate
-    - docker exec -T webshark-app php artisan migrate --force
-    - docker exec -T webshark-app php artisan test
+    - docker exec webshark-app php artisan key:generate
+    - docker exec webshark-app php artisan migrate --force
+    - docker exec webshark-app php artisan test
   after_script:
     - docker compose --env-file src/WebShark/.env down
   rules:
@@ -61,14 +61,14 @@ deploy_to_production:
     - $COMPOSE_CMD run --rm node npm install
     - $COMPOSE_CMD run --rm node npm run build
     
-    - docker exec -T webshark-app composer install --no-interaction --optimize-autoloader --no-dev
-    - docker exec -T webshark-app chmod -R 775 storage bootstrap/cache
-    - docker exec -T webshark-app php artisan key:generate --force
-    - docker exec -T webshark-app php artisan storage:link || echo "Already linked"
-    - docker exec -T webshark-app php artisan migrate --force
-    - docker exec -T webshark-app php artisan config:cache
-    - docker exec -T webshark-app php artisan route:cache
-    - docker exec -T webshark-app php artisan view:cache
+    - docker exec webshark-app composer install --no-interaction --optimize-autoloader --no-dev
+    - docker exec webshark-app chmod -R 775 storage bootstrap/cache
+    - docker exec webshark-app php artisan key:generate --force
+    - docker exec webshark-app php artisan storage:link || echo "Already linked"
+    - docker exec webshark-app php artisan migrate --force
+    - docker exec webshark-app php artisan config:cache
+    - docker exec webshark-app php artisan route:cache
+    - docker exec webshark-app php artisan view:cache
 
     - docker stop webshark-node || true
     

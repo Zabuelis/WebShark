@@ -63,6 +63,11 @@ sudo docker compose --env-file src/WebShark/.env exec valkey valkey-cli KEYS "*"
 sudo docker compose --env-file src/WebShark/.env logs -f cron
 ```
 
+## To run tests
+```bash
+sudo docker exec -it webshark-app php artisan test
+```
+
 ## Scalability for queue-worker
 ```bash
 sudo docker compose --env-file src/WebShark/.env up -d --scale queue-worker=3
