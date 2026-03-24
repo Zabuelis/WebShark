@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('file_path');
             $table->dateTime('expires_at', precision: 0)->nullable(true);
             $table->string('status');
+            $table->text('error_message')->nullable()->after('status');
+            $table->integer('progress_percentage')->default(0);
         });
     }
 

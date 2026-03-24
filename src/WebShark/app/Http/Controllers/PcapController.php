@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 
 class PcapController extends Controller
 {
@@ -36,8 +37,7 @@ class PcapController extends Controller
             $fileName = $request->file('pcap_file')->getClientOriginalName();
 
             // Pcaps are stored with a timestamp + session ID prefix
-            $rebuiltFileName =
-                now()->format('Y-m-d_h:i:s') . '_' . $sessionID . '_' . $fileName;
+            $rebuiltFileName = now()->format('Y-m-d_h:i:s') . '_' . $sessionID . '_' . $fileName;
             $request->file('pcap_file')->storeAs('pcap', $rebuiltFileName);
 
             // 1. Dispatch job & log to DB
@@ -51,9 +51,7 @@ class PcapController extends Controller
                 ]);
             }
 
-            // This instead of rendering a new page returns a modal view with json data because there is no inertia page to render
-            // Testing for now should be done by manually entering the URL
-            return redirect('/pcap/analysis/' . $uuid);
+            return redirect()->route('pcap.status', ['id' => $uuid])->with('success', 'File uploaded successfully, analysis started.');
 
         } catch (Exception $e) {
             Log::error('File save failed', [
@@ -64,30 +62,59 @@ class PcapController extends Controller
         }
     }
 
-    public function show(String $id){
-        // Return only the status column from redis_job table
-        $jobStatus = RedisJob::where('redis_id', '=', $id)->pluck('status')->first();
+    public function show(String $id)
+    {
+        $job = RedisJob::where('redis_id', $id)->firstOrFail();
+        $status = $job->status;
+
+        // Default props
+        $props = [
+            'id' => $id,
+            'status' => $status,
+            'progress' => $job->progress_percentage,
+            'expires_at' => $job->expires_at 
+            ? \Carbon\Carbon::parse($job->expires_at)->diffForHumans([
+                'parts' => 2,
+                'join' => true,
+            ]) 
+            : null,
+            'message' => '',
+            'packets' => null,
+            'total_bytes' => 0,
+            'first_packet_time' => 0,
+            'last_packet_time' => 0,
+        ];
 
         // Check the status of the job
-        if ($jobStatus === 'dispatching') {
-            return response()->json([
-                'status' => 'dispatching',
-                'message' => 'Still analyzing, try refreshing in a few seconds.',
-            ]);
-        } else if ($jobStatus === 'failed'){
-            return response()->json([
-                'status' => 'failed',
-                'message' => 'Analysis failed, please retry later.',
-            ]);
+        if ($status === 'dispatching') {
+            $props['message'] = 'Analyzing PCAP... Please wait.';
+            return Inertia::render('Analysis', $props);
         }
 
-        // Return packets related to the job id from packet table
-        $data = Packet::where('redis_id', '=', $id)->orderBy('packet_id', 'asc')->get();
+        if ($status === 'failed') {
+            $props['message'] = $job->error_message ?? 'Analysis failed due to an system error. Error code: 3';
+            return Inertia::render('Analysis', $props);
+        }
 
-        return response()->json([
-            'packets' => $data
-        ]);
+        // If we are here, everything went well
+        $props['packets'] = Packet::where('redis_id', $id)
+                                    ->orderBy('packet_number', 'asc')
+                                    ->paginate(20);
+        
+        $props['total_bytes'] = (int) Packet::where('redis_id', $id)
+                                            ->sum('captured_packet_length');
 
+        $firstPacket = Packet::where('redis_id', $id)
+                               ->orderBy('packet_number', 'asc')
+                               ->first();
+
+        $lastPacket = Packet::where('redis_id', $id)->orderBy('packet_number', 'desc')->first();
+
+        $props['first_packet_time'] = $firstPacket ? (float) $firstPacket->timestamp : 0;
+
+        $props['last_packet_time'] = $lastPacket ? (float) $lastPacket->timestamp : 0;
+
+        return Inertia::render('Analysis', $props);
     }
 
     /**

@@ -1,5 +1,6 @@
 import sys
 import os
+from time import sleep
 import psycopg2
 import psycopg2.extras
 import json
@@ -166,6 +167,7 @@ def analyze_packet(pkt, index):
     result = {
         "id": index,
         "length": len(pkt),
+        "timestamp": float(pkt.time),
         "layers": {
             "L3": {},
             "L4": {},
@@ -204,17 +206,17 @@ conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={
 cursor = conn.cursor()
 
 if not validate_pcap(file_path):
-    print(
-        "ERROR:"
-        + json.dumps({"error": "Not a valid PCAP file"})
-    )
+    print(json.dumps({"error": "Analysis failed due to an invalid PCAP file"}))
     sys.exit(1)
+
+total_size = os.path.getsize(file_path)
 
 with PcapReader(file_path) as reader:
     row_limit = 1000
     query = """INSERT INTO packet 
         (
-            redis_id, 
+            redis_id,
+            packet_number, 
             l3_protocol,
             src_ip, 
             dst_ip, 
@@ -222,14 +224,35 @@ with PcapReader(file_path) as reader:
             src_port, 
             dst_port,
             l4_protocol,
-            l7_protocol
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+            l7_protocol,
+            timestamp,
+            raw_hex
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
     rows = []
     for index, pkt in enumerate(reader):
         result = analyze_packet(pkt, index)
+
+        if index % 500 == 0:
+            current_pos = reader.f.tell()
+            
+            progress = 0
+            if total_size > 0:
+                progress = min(int((current_pos / total_size) * 100), 100)
+            
+            try:
+                cursor.execute(
+                    "UPDATE redis_job SET progress_percentage = %s WHERE redis_id = %s", 
+                    (progress, redis_id)
+                )
+                conn.commit()
+            except Exception as e:
+                print(json.dumps({"error": "Failed to update progress: " + str(e)}))
+
+
         # Make a list of 1000 tuples and then commit to DB
         rows.append((
             redis_id, 
+            index + 1,
             result["layers"]["L3"].get("protocol"),
             result["layers"]["L3"].get("src"), 
             result["layers"]["L3"].get("dst"), 
@@ -237,7 +260,9 @@ with PcapReader(file_path) as reader:
             result["layers"]["L4"].get("src_port"), 
             result["layers"]["L4"].get("dst_port"),
             result["layers"]["L4"].get("protocol"),
-            result["layers"]["L7"].get("protocol")
+            result["layers"]["L7"].get("protocol"),
+            result["timestamp"],
+            result["hex_dump"]
         ))
 
         # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required
@@ -247,6 +272,13 @@ with PcapReader(file_path) as reader:
             psycopg2.extras.execute_batch(cursor, query, rows)
             conn.commit()
             rows.clear()
+
+cursor.execute(
+    "UPDATE redis_job SET progress_percentage = 100 WHERE redis_id = %s", 
+    (redis_id,)
+)
+conn.commit()
+sleep(0.5) # Ensure the last update is visible in the UI before we close the connection
 
 if len(rows) > 0:
     psycopg2.extras.execute_batch(cursor, query, rows)
