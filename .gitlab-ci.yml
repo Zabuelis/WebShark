@@ -60,9 +60,6 @@ deploy_to_production:
     - echo "Deploying WebShark to ${APP_URL}..."
     - $COMPOSE_CMD down --remove-orphans
 
-    - $COMPOSE_CMD run --rm node npm install
-    - $COMPOSE_CMD run --rm node npm run build
-
     - $COMPOSE_CMD up -d --build
     - sleep 5
 
@@ -70,6 +67,9 @@ deploy_to_production:
     - docker exec webshark-app chmod -R 775 storage bootstrap/cache
     - docker exec webshark-app php artisan storage:link || echo "Already linked"
     - docker exec webshark-app php artisan migrate --force
+
+    - $COMPOSE_CMD run --rm node npm install
+    - $COMPOSE_CMD run --rm node npm run build
 
     - docker exec webshark-app php artisan config:cache
     - docker exec webshark-app php artisan route:cache
