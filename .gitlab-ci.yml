@@ -50,7 +50,9 @@ run_tests:
 
 deploy_to_production:
   stage: deploy
-  environment: production
+  environment:
+    name: production
+    url: $APP_URL
   before_script:
     - *env-setup
   script:
@@ -72,8 +74,8 @@ deploy_to_production:
     - docker exec webshark-app php artisan route:cache
     - docker exec webshark-app php artisan view:cache
 
-    - sudo $COMPOSE_CMD down
-    - sudo $COMPOSE_CMD up -d --build
+    - $COMPOSE_CMD down
+    - $COMPOSE_CMD up -d --build
     
     - echo "Application is LIVE at ${APP_URL}"
   rules:
