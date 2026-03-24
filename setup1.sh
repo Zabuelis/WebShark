@@ -2,6 +2,8 @@
 
 echo "Starting setup..."
 
+sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install git -y
+
 # Check if we are already in the repo
 if [ ! -d ".git" ]; then
     echo "Cloning repository..."
@@ -10,8 +12,6 @@ if [ ! -d ".git" ]; then
 else
     echo "Already in repository directory."
 fi
-
-sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install git -y
 
 # Add Docker's official GPG key:
 sudo apt update -y
