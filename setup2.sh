@@ -14,9 +14,12 @@ sudo docker exec -it webshark-app php artisan migrate
 sudo docker compose --env-file src/WebShark/.env down
 sudo docker compose --env-file src/WebShark/.env up -d --build
 
-echo "WebShark is now running. You can access it at http://localhost:8000"
-echo "To stop the application, run:"
+echo
+echo -e "\e[1mWebShark is now running. You can access it at http://localhost:8000\e[0m"
+echo -e "\e[1mTo stop the application, run:\e[0m"
 echo "sudo docker compose --env-file src/WebShark/.env down"
-echo "For more commands, please refer to the README.md file"
-echo "If you are running this on a remote server, use the following command to create an SSH tunnel to access the application locally:"
+echo -e "\e[1mTo run the application again, run:\e[0m"
+echo "sudo docker compose --env-file src/WebShark/.env up -d --build"
+echo -e "\e[1mFor more commands, please refer to the README.md file\e[0m"
+echo -e "\e[1mIf you are running this on a remote server, use the following command to create an SSH tunnel to access the application locally:\e[0m"
 echo "ssh -L 8000:localhost:8000 -L 5173:localhost:5173 <OpenNebula CONNECT_INFO1 (without the ssh)>"

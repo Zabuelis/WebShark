@@ -4,6 +4,16 @@ WebShark is a web based network packet analyzer.
 Upload a `.pcap` or `.pcapng` files and inspect its packets, protocols and IP flows in your browser.
 Built with Laravel, Vue.js and Scapy.
 
+# Quick Start (Recommended)
+For a fresh VM, run the following command. This script will clone the repository if needed, install Docker and perform all setup steps:
+```bash
+curl -sSL https://git.mif.vu.lt/luse0397/webshark/-/blob/main/setup1.sh -o setup1.sh && source setup1.sh
+```
+
+---
+
+# Manual Installation
+
 ## 1. Setup (First time only)
 First, copy the example environment file:
 ```bash
@@ -55,6 +65,7 @@ sudo docker compose --env-file src/WebShark/.env down
 ```
 
 ---
+# Debugging & Maintenance
 
 ## To see PostgreSQL
 ```bash
