@@ -11,6 +11,14 @@ from scapy.layers.http import HTTPRequest, HTTPResponse
 # A dict is a data structure that maps keys to values (like hashmap in other languages).
 # in our case dict that maps: layer -> protocol name -> function.
 
+# L7 fields and their explanations, fields are kept with the same name as in DB
+# l7_version
+# l7_status_codes - for example http 404, 403...
+# l7_reason_phrase - general translation of status codes
+# l7_method - for example http get, put...
+# l7_path
+#
+
 handlers = {
     "L3": {},
     "L4": {},
@@ -116,23 +124,23 @@ def handle_dns(pkt):
 def handle_http(pkt):
     http_header = {
         "protocol": "HTTP", 
-        "method": None,
-        "version": None,
-        "path": None,
-        "status_code": None,
-        "reason_phrase": None,
+        "l7_method": None,
+        "l7_version": None,
+        "l7_path": None,
+        "l7_status_code": None,
+        "l7_reason_phrase": None,
     }
 
     if HTTPRequest in pkt:
         http = pkt[HTTPRequest]
-        http_header.update({"method": http.Method.decode(errors="replace")})
-        http_header.update({"path": http.Path.decode(errors="replace")})
-        http_header.update({"version": http.Http_Version.decode(errors="replace")})
+        http_header.update({"l7_method": http.Method.decode(errors="replace")})
+        http_header.update({"l7_path": http.Path.decode(errors="replace")})
+        http_header.update({"l7_version": http.Http_Version.decode(errors="replace")})
     elif HTTPResponse in pkt:
         http = pkt[HTTPResponse]
-        http_header.update({"status_code": http.Status_Code.decode(errors="replace")})
-        http_header.update({"reason_phrase": http.Reason_Phrase.decode(errors="replace")})
-        http_header.update({"version": http.Http_Version.decode(errors="replace")})
+        http_header.update({"l7_status_code": http.Status_Code.decode(errors="replace")})
+        http_header.update({"l7_reason_phrase": http.Reason_Phrase.decode(errors="replace")})
+        http_header.update({"l7_version": http.Http_Version.decode(errors="replace")})
     return http_header
 
 
@@ -238,6 +246,10 @@ if not validate_pcap(file_path):
     )
     sys.exit(1)
 
+# IMPORTANT
+# DB connection should be covered in a TRY/CATCH block to gracefully shut down connections.
+# IMPORTANT
+
 # Establish connection to the DB
 conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={dbPass}')
 cursor = conn.cursor()
@@ -255,11 +267,11 @@ with PcapReader(file_path) as reader:
             dst_port,
             l4_protocol,
             l7_protocol,
-            http_method,
-            http_version,
-            http_path,
-            http_status_code,
-            http_reason_phrase
+            l7_method,
+            l7_version,
+            l7_path,
+            l7_status_code,
+            l7_reason_phrase
 
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
     rows = []
@@ -276,11 +288,11 @@ with PcapReader(file_path) as reader:
             result["layers"]["L4"].get("dst_port"),
             result["layers"]["L4"].get("protocol"),
             result["layers"]["L7"].get("protocol"),
-            result["layers"]["L7"].get("method"),
-            result["layers"]["L7"].get("version"),
-            result["layers"]["L7"].get("path"),
-            result["layers"]["L7"].get("status_code"),
-            result["layers"]["L7"].get("reason_phrase")
+            result["layers"]["L7"].get("l7_method"),
+            result["layers"]["L7"].get("l7_version"),
+            result["layers"]["L7"].get("l7_path"),
+            result["layers"]["L7"].get("l7_status_code"),
+            result["layers"]["L7"].get("l7_reason_phrase")
         ))
 
         # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required
