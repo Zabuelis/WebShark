@@ -8,8 +8,8 @@ Built with Laravel, Vue.js and Scapy.
 First, copy the example environment file:
 ```bash
 cp src/WebShark/.env.example src/WebShark/.env
-# Update WWWUSER and WWWGROUP in .env (run 'id -u' and 'id -g'). Might need to change only on macOS.
 ```
+For macOS: update WWWUSER and WWWGROUP in .env (run 'id -u' and 'id -g')
 
 ## 2. Spin docker up
 Run this from the root folder. We use the `--env-file` flag so Docker can find your config:
@@ -20,6 +20,8 @@ sudo docker compose --env-file src/WebShark/.env up -d --build
 ## 3. Install dependencies (First time only)
 ```bash
 sudo docker exec -it webshark-app composer install
+sudo docker compose --env-file src/WebShark/.env run --rm node npm install
+sudo docker compose --env-file src/WebShark/.env up -d --build
 sudo docker exec -it webshark-node npm install
 ```
 
@@ -36,12 +38,18 @@ If you are hosting on a VM, close your current SSH session and reconnect with po
 ssh -L 8000:localhost:8000 -L 5173:localhost:5173 <OpenNebula CONNECT_INFO1 (without the ssh)>
 ```
 
-## 6. Test it
+## 6. Restart it (First time only)
+```bash
+sudo docker compose --env-file src/WebShark/.env down
+sudo docker compose --env-file src/WebShark/.env up -d --build
+```
+
+## 7. Test it
 ```bash
 http://localhost:8000/
 ```
 
-## 7. Stopping
+## 8. Stopping
 ```bash
 sudo docker compose --env-file src/WebShark/.env down
 ```

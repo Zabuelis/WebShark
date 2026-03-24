@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:24-alpine
 
 # Use Alpine Edge repositories to get the latest PHP 8.4
 RUN apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community \
