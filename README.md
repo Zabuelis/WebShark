@@ -7,7 +7,7 @@ Built with Laravel, Vue.js and Scapy.
 # Quick Start (Recommended)
 For a fresh VM, run the following command. This script will clone the repository if needed, install Docker and perform all setup steps:
 ```bash
-curl -sSL https://git.mif.vu.lt/luse0397/webshark/-/blob/main/setup1.sh -o setup1.sh && source setup1.sh
+curl -sSL https://git.mif.vu.lt/luse0397/webshark/-/raw/main/setup1.sh -o setup1.sh && source setup1.sh
 ```
 
 ---
