@@ -1,10 +1,10 @@
 <?php
 
+use App\Http\Controllers\FileController;
+use App\Http\Controllers\PcapController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
-use App\Http\Controllers\FileController;
-
 
 Route::get('/', function () {
     return Inertia::render('Home', [
@@ -12,10 +12,17 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
-Route::post('/file/uploadPcap', [FileController::class, 'uploadPcap'])->name('upload.pcap');
+// Upload route with rate limiting
+Route::middleware('rateLimit')->group(function () {
+    Route::post('/file/uploadPcap', [
+        PcapController::class,
+        'create',
+    ])->name('upload.pcap');
+});
 
-Route::get('dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+// Route to display packet data
+Route::get('/pcap/analysis/{id}', [PcapController::class, 'show'])
+    ->middleware('analysis.exists')
+    ->name('pcap.status');
 
-require __DIR__.'/settings.php';
+require __DIR__ . '/settings.php';
