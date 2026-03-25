@@ -31,6 +31,8 @@ return new class extends Migration
             $table->string('l7_path')->nullable(true);
             $table->string('l7_status_code')->nullable(true);
             $table->string('l7_reason_phrase')->nullable(true);
+            $table->string('l7_payload')->nullable(true);
+            $table->string('l7_attributes')->nullable(true);
 
             $table->foreign('redis_id')->references('redis_id')->on('redis_job')->onDelete('cascade');
         });

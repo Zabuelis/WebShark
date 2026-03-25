@@ -1,2 +1,2 @@
-scapy
 psycopg2-binary
+pyshark

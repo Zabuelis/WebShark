@@ -3,8 +3,7 @@ import os
 import psycopg2
 import psycopg2.extras
 import json
-from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP, DNS
-from scapy.layers.http import HTTPRequest, HTTPResponse
+import pyshark
 
 # So, in our case we have layers: L3, L4 and L7. Each layer has its own registry.
 # The registry is a dict that maps the protocol name to the function that can handle it.
@@ -16,8 +15,9 @@ from scapy.layers.http import HTTPRequest, HTTPResponse
 # l7_status_codes - for example http 404, 403...
 # l7_reason_phrase - general translation of status codes
 # l7_method - for example http get, put...
-# l7_path
-#
+# l7_path - the path that this packet is trying to access (usually web protocols)
+# l7_payload - retrievable data in a packet (http contents)
+# l7_attributes - additional non primary data like cookies and more
 
 handlers = {
     "L3": {},
@@ -31,9 +31,9 @@ def register(layer, name, func):
 
 # L3 handlers
 def handle_ipv4(pkt):
-    if IP not in pkt:
+    if "ip" not in pkt:
         return None
-    ip = pkt[IP]
+    ip = pkt["ip"]
     return {
         "protocol": "IPv4",
         "src": ip.src,
@@ -44,16 +44,15 @@ def handle_ipv4(pkt):
     }
 
 def handle_ipv6(pkt):
-    if IPv6 not in pkt:
+    if "ipv6" not in pkt:
         return None
-    ip6 = pkt[IPv6]
+    ip6 = pkt["IPv6"]
     return {
         "protocol": "IPv6",
         "src": ip6.src,
         "dst": ip6.dst,
         "hop_limit": ip6.hlim,
         "payload_len": ip6.plen,
-        "next_header": ip6.nh,
     }
 
 register("L3", "IPv4", handle_ipv4)
@@ -61,34 +60,34 @@ register("L3", "IPv6", handle_ipv6)
 
 # L4 handlers
 def handle_tcp(pkt):
-    if TCP not in pkt:
+    if "tcp" not in pkt:
         return None
-    tcp = pkt[TCP]
+    tcp = pkt["tcp"]
     return {
         "protocol": "TCP",
-        "src_port": tcp.sport,
-        "dst_port": tcp.dport,
+        "src_port": tcp.srcport,
+        "dst_port": tcp.dstport,
         "seq": tcp.seq,
         "ack": tcp.ack,
         "flags": str(tcp.flags),
-        "window": tcp.window,
+        "window": tcp.window_size,
     }
 
 def handle_udp(pkt):
-    if UDP not in pkt:
+    if "udp" not in pkt:
         return None
-    udp = pkt[UDP]
+    udp = pkt["udp"]
     return {
         "protocol": "UDP",
-        "src_port": udp.sport,
-        "dst_port": udp.dport,
-        "length": udp.len,
+        "src_port": udp.srcport,
+        "dst_port": udp.dstport,
+        "length": udp.length,
     }
 
 def handle_icmp(pkt):
-    if ICMP not in pkt:
+    if "icmp" not in pkt:
         return None
-    icmp = pkt[ICMP]
+    icmp = pkt["icmp"]
     return {
         "protocol": "ICMP",
         "type": icmp.type,
@@ -101,52 +100,37 @@ register("L4", "ICMP", handle_icmp)
 
 # L7 handlers
 def handle_dns(pkt):
-    if DNS not in pkt:
+    if "dns" not in pkt:
         return None
-    dns = pkt[DNS]
-
-    query = None
-    if dns.qd:
-        # dns.qd.qname = domain name in raw bytes
-        # errors="replace" = bad bytes will be replaced with a placeholder character
-        query = dns.qd.qname.decode(errors="replace") 
+    dns = pkt["dns"]
 
     return {
         "protocol": "DNS",
         "id": dns.id,
-        "qr": dns.qr, # 0 = question, 1 = answer
-        "qd_count": dns.qdcount,
-        "an_count": dns.ancount,
-        "query": query,
+        #"qr": dns.qr, # 0 = question, 1 = answer?
+        #"qd_count": dns.count.queries,
+        #"an_count": dns.count.answers,
+        #"query": query, ?
     }
 
-# Handles only HTTP 1.0/1.1
-def handle_http(pkt):
+def handle_pyshark_http(pkt):
     http_header = {
         "protocol": "HTTP", 
         "l7_method": None,
         "l7_version": None,
         "l7_path": None,
+        "l7_payload": None,
         "l7_status_code": None,
         "l7_reason_phrase": None,
+        "l7_attributes": None
     }
 
-    if HTTPRequest in pkt:
-        http = pkt[HTTPRequest]
-        http_header.update({"l7_method": http.Method.decode(errors="replace")})
-        http_header.update({"l7_path": http.Path.decode(errors="replace")})
-        http_header.update({"l7_version": http.Http_Version.decode(errors="replace")})
-    elif HTTPResponse in pkt:
-        http = pkt[HTTPResponse]
-        http_header.update({"l7_status_code": http.Status_Code.decode(errors="replace")})
-        http_header.update({"l7_reason_phrase": http.Reason_Phrase.decode(errors="replace")})
-        http_header.update({"l7_version": http.Http_Version.decode(errors="replace")})
+    http_header.update({"l7_version": pkt['http'].get("request_version")})
+    
     return http_header
 
-
-
 register("L7", "DNS", handle_dns)
-register("L7", "HTTP", handle_http)
+register("L7", "HTTPP", handle_pyshark_http)
 
 # Hex dump fallback for unknown protocols
 def get_hex_dump(pkt):
@@ -158,28 +142,29 @@ def get_hex_dump(pkt):
 
 # Identify which protocol a packet uses by looking at its layers
 def identify_l3(pkt):
-    if IP in pkt:
+    if "ip" in pkt:
         return "IPv4"
-    if IPv6 in pkt:
+    if "ipv6" in pkt:
         return "IPv6"
     return None
 
 def identify_l4(pkt):
-    if TCP in pkt:
+    if "tcp" in pkt:
         return "TCP"
-    if UDP in pkt:
+    if "udp" in pkt:
         return "UDP"
-    if ICMP in pkt:
+    if "icmp" in pkt:
         return "ICMP"
     return None
 
-def identify_l7(pkt, result):
-    if DNS in pkt:
+def identify_l7(pkt):
+    if "dns" in pkt:
         return "DNS"
-    src_port = result.get("src_port")
-    dst_port = result.get("dst_port")
-    if HTTPRequest or HTTPResponse in (pkt):
-        return "HTTP"
+    # if HTTPRequest or HTTPResponse in (pkt):
+    #     return "HTTP"
+    # if "http" in pkt:
+    #     return "HTTPP"
+
     # ToDo: Add more L7 protocols (HTTP, TLS, ...)
     # if HTTP in pkt: return "HTTP" (Scapy has no HTTP layer by default)
     return None
@@ -224,7 +209,7 @@ def analyze_packet(pkt, index):
         result["layers"]["L4"] = handlers["L4"][l4_name](pkt)
 
     # L7
-    l7_name = identify_l7(pkt, result["layers"]["L4"])
+    l7_name = identify_l7(pkt)
     if l7_name and l7_name in handlers["L7"]:
         result["layers"]["L7"] = handlers["L7"][l7_name](pkt)
 
@@ -254,7 +239,8 @@ if not validate_pcap(file_path):
 conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={dbPass}')
 cursor = conn.cursor()
 
-with PcapReader(file_path) as reader:
+
+with pyshark.FileCapture(file_path, keep_packets = False) as packet:
     row_limit = 1000
     query = """INSERT INTO packet 
         (
@@ -271,11 +257,13 @@ with PcapReader(file_path) as reader:
             l7_version,
             l7_path,
             l7_status_code,
-            l7_reason_phrase
+            l7_reason_phrase,
+            l7_payload,
+            l7_attributes
 
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
     rows = []
-    for index, pkt in enumerate(reader):
+    for index, pkt in enumerate(packet):
         result = analyze_packet(pkt, index)
         # Make a list of 1000 tuples and then commit to DB
         rows.append((
@@ -292,7 +280,9 @@ with PcapReader(file_path) as reader:
             result["layers"]["L7"].get("l7_version"),
             result["layers"]["L7"].get("l7_path"),
             result["layers"]["L7"].get("l7_status_code"),
-            result["layers"]["L7"].get("l7_reason_phrase")
+            result["layers"]["L7"].get("l7_reason_phrase"),
+            result["layers"]["L7"].get("l7_payload"),
+            result["layers"]["L7"].get("l7_attributes")
         ))
 
         # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required
@@ -303,6 +293,7 @@ with PcapReader(file_path) as reader:
             conn.commit()
             rows.clear()
 
+packet.close()
 if len(rows) > 0:
     psycopg2.extras.execute_batch(cursor, query, rows)
     conn.commit()
