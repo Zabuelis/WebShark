@@ -31,9 +31,9 @@ def register(layer, name, func):
 
 # L3 handlers
 def handle_ipv4(pkt):
-    if "ip" not in pkt:
+    if "IP" not in pkt:
         return None
-    ip = pkt["ip"]
+    ip = pkt["IP"]
     return {
         "protocol": "IPv4",
         "src": ip.src,
@@ -44,7 +44,7 @@ def handle_ipv4(pkt):
     }
 
 def handle_ipv6(pkt):
-    if "ipv6" not in pkt:
+    if "IPv6" not in pkt:
         return None
     ip6 = pkt["IPv6"]
     return {
@@ -60,9 +60,9 @@ register("L3", "IPv6", handle_ipv6)
 
 # L4 handlers
 def handle_tcp(pkt):
-    if "tcp" not in pkt:
+    if "TCP" not in pkt:
         return None
-    tcp = pkt["tcp"]
+    tcp = pkt["TCP"]
     return {
         "protocol": "TCP",
         "src_port": tcp.srcport,
@@ -74,9 +74,9 @@ def handle_tcp(pkt):
     }
 
 def handle_udp(pkt):
-    if "udp" not in pkt:
+    if "UDP" not in pkt:
         return None
-    udp = pkt["udp"]
+    udp = pkt["UDP"]
     return {
         "protocol": "UDP",
         "src_port": udp.srcport,
@@ -85,9 +85,9 @@ def handle_udp(pkt):
     }
 
 def handle_icmp(pkt):
-    if "icmp" not in pkt:
+    if "ICMP" not in pkt:
         return None
-    icmp = pkt["icmp"]
+    icmp = pkt["ICMP"]
     return {
         "protocol": "ICMP",
         "type": icmp.type,
@@ -100,9 +100,9 @@ register("L4", "ICMP", handle_icmp)
 
 # L7 handlers
 def handle_dns(pkt):
-    if "dns" not in pkt:
+    if "DNS" not in pkt:
         return None
-    dns = pkt["dns"]
+    dns = pkt["DNS"]
 
     return {
         "protocol": "DNS",
@@ -113,26 +113,31 @@ def handle_dns(pkt):
         #"query": query, ?
     }
 
-def handle_pyshark_http(pkt):
+def handle_http(pkt):
+    if "HTTP" not in pkt:
+        return None
+    http = pkt["HTTP"]
     http_header = {
-        "protocol": "HTTP", 
-        "l7_method": None,
-        "l7_version": None,
-        "l7_path": None,
-        "l7_payload": None,
-        "l7_status_code": None,
-        "l7_reason_phrase": None,
-        "l7_attributes": None
+        "protocol": "HTTP",
+        "version": None,
     }
-
-    http_header.update({"l7_version": pkt['http'].get("request_version")})
-    
+    if http.get("request"):
+        http_header.update({"version": http.get("request_version")})
+        http_header["request_method"] = http.get("request_method")
+        http_header["uri_path"] = http.get("request_uri")
+    elif http.get("response"):
+        http_header.update({"version": http.get("response_version")})
+        http_header["status_code"] = http.get("response_code")
+        http_header["response_phrase"] = http.get("response_phrase")
+        http_header["cookie"] = http.get("set_cookie")
     return http_header
+        
 
 register("L7", "DNS", handle_dns)
-register("L7", "HTTPP", handle_pyshark_http)
+register("L7", "HTTP", handle_http)
 
 # Hex dump fallback for unknown protocols
+# This needs an alternative as PyShark does not return raw bytes (maybe using scapy only for this)
 def get_hex_dump(pkt):
     try:
         raw_bytes = raw(pkt) # f"{byte:02x}" formats each byte as a 2-digit hex number. 255 -> ff, 0 -> 00, 16 -> 10
@@ -142,31 +147,28 @@ def get_hex_dump(pkt):
 
 # Identify which protocol a packet uses by looking at its layers
 def identify_l3(pkt):
-    if "ip" in pkt:
+    if "IP" in pkt:
         return "IPv4"
-    if "ipv6" in pkt:
+    if "IPv6" in pkt:
         return "IPv6"
     return None
 
 def identify_l4(pkt):
-    if "tcp" in pkt:
+    if "TCP" in pkt:
         return "TCP"
-    if "udp" in pkt:
+    if "UDP" in pkt:
         return "UDP"
-    if "icmp" in pkt:
+    if "ICMP" in pkt:
         return "ICMP"
     return None
 
 def identify_l7(pkt):
-    if "dns" in pkt:
+    if "DNS" in pkt:
         return "DNS"
-    # if HTTPRequest or HTTPResponse in (pkt):
-    #     return "HTTP"
-    # if "http" in pkt:
-    #     return "HTTPP"
+    if "HTTP" in (pkt):
+        return "HTTP"
 
     # ToDo: Add more L7 protocols (HTTP, TLS, ...)
-    # if HTTP in pkt: return "HTTP" (Scapy has no HTTP layer by default)
     return None
 
 # Validate PCAP
@@ -231,13 +233,13 @@ if not validate_pcap(file_path):
     )
     sys.exit(1)
 
-# IMPORTANT
-# DB connection should be covered in a TRY/CATCH block to gracefully shut down connections.
-# IMPORTANT
-
-# Establish connection to the DB
-conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={dbPass}')
-cursor = conn.cursor()
+try:
+    # Establish connection to the DB
+    conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={dbPass}')
+    cursor = conn.cursor()
+except:
+    print(json.dumps({"error": "Failed to establish DB connection"}))
+    sys.exit(1)
 
 
 with pyshark.FileCapture(file_path, keep_packets = False) as packet:
@@ -253,15 +255,8 @@ with pyshark.FileCapture(file_path, keep_packets = False) as packet:
             dst_port,
             l4_protocol,
             l7_protocol,
-            l7_method,
-            l7_version,
-            l7_path,
-            l7_status_code,
-            l7_reason_phrase,
-            l7_payload,
             l7_attributes
-
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
     rows = []
     for index, pkt in enumerate(packet):
         result = analyze_packet(pkt, index)
@@ -276,13 +271,7 @@ with pyshark.FileCapture(file_path, keep_packets = False) as packet:
             result["layers"]["L4"].get("dst_port"),
             result["layers"]["L4"].get("protocol"),
             result["layers"]["L7"].get("protocol"),
-            result["layers"]["L7"].get("l7_method"),
-            result["layers"]["L7"].get("l7_version"),
-            result["layers"]["L7"].get("l7_path"),
-            result["layers"]["L7"].get("l7_status_code"),
-            result["layers"]["L7"].get("l7_reason_phrase"),
-            result["layers"]["L7"].get("l7_payload"),
-            result["layers"]["L7"].get("l7_attributes")
+            json.dumps(result["layers"]["L7"])
         ))
 
         # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required

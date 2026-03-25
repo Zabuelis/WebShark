@@ -26,14 +26,7 @@ return new class extends Migration
             $table->integer('original_packet_length')->nullable(true);
             $table->integer('captured_packet_length')->nullable(true);
             $table->time('timestamp', precision: 0)->nullable(true);
-            $table->string('l7_method')->nullable(true);
-            $table->string('l7_version')->nullable(true);
-            $table->string('l7_path')->nullable(true);
-            $table->string('l7_status_code')->nullable(true);
-            $table->string('l7_reason_phrase')->nullable(true);
-            $table->string('l7_payload')->nullable(true);
-            $table->string('l7_attributes')->nullable(true);
-
+            $table->jsonb('l7_attributes')->nullable(true);
             $table->foreign('redis_id')->references('redis_id')->on('redis_job')->onDelete('cascade');
         });
     }
