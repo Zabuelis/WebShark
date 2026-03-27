@@ -20,16 +20,16 @@ curl -sSL https://git.mif.vu.lt/luse0397/webshark/-/raw/main/setup.sh -o setup.s
 
 ## Managing the Application
 
-Once the script finishes, you must be inside the project directory (⁠webshark/) to run these commands:
+Once the script finishes, you must be inside the project directory (`⁠webshark/`) to run these commands:
 
 ### Stop the application
 ```bash
-sudo docker compose --env-file src/WebShark/.env down
+make down
 ```
 
 ### Start the application
 ```bash
-sudo docker compose --env-file src/WebShark/.env up -d --build
+make up
 ```
 
 ### Access the UI
@@ -144,16 +144,3 @@ sudo docker exec -it webshark-app php artisan test
 ```bash
 sudo docker compose --env-file src/WebShark/.env up -d --scale queue-worker=3
 ```
-
-
-
-cp src/WebShark/.env.example src/WebShark/.env
-
-sudo docker compose --env-file src/WebShark/.env up -d --build
-
-sudo docker exec -it webshark-app composer install
-
-sudo docker exec -it webshark-app php artisan key:generate
-sudo docker exec -it webshark-app php artisan storage:link
-sudo docker exec -it webshark-app php artisan migrate
-
