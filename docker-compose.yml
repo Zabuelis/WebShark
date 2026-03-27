@@ -107,6 +107,8 @@ services:
       - ./src/WebShark/.env
     volumes:
       - ./src/WebShark:/var/www
+      # Define a volume inside the container so the previous one does not overwrite installed npm packages
+      - /var/www/node_modules
     ports:
       - "5173:5173"
     command: npm run dev
