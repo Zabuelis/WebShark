@@ -31,7 +31,7 @@ class EnsureRateLimiting
 
         if($ipMarker->analyze_counter >= 10){
             $timeDifference = Carbon::parse($ipMarker->expires_at)->diffForHumans();
-            return redirect()->back()->with('error', 'You have reached your limit of analyses, please wait: ' . $timeDifference . '.');
+            return redirect()->back()->with('error', 'You have reached your analysis limit. Please try again in ' . $timeDifference . '.');
         }
 
         return $next($request);
