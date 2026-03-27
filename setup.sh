@@ -10,7 +10,7 @@ echo "Starting setup..."
 
 # Prerequisites & Updates
 sudo apt-get update -y && sudo apt-get upgrade -y
-sudo apt-get install git ca-certificates curl -y
+sudo apt-get install git ca-certificates make curl -y
 
 # Repository Handling (Check if already exists)
 if [ -d "$REPO_DIR" ]; then
