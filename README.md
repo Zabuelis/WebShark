@@ -151,6 +151,8 @@ cp src/WebShark/.env.example src/WebShark/.env
 
 sudo docker compose --env-file src/WebShark/.env up -d --build
 
+sudo docker exec -it webshark-app composer install
+
 sudo docker exec -it webshark-app php artisan key:generate
 sudo docker exec -it webshark-app php artisan storage:link
 sudo docker exec -it webshark-app php artisan migrate

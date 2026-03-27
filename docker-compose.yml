@@ -3,11 +3,15 @@ services:
     build:
       context: ./src/WebShark
       dockerfile: Dockerfile
-    image: webshark-app
     container_name: webshark-app
     restart: unless-stopped
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
     working_dir: /var/www
+    depends_on:
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_started
     volumes:
       - ./src/WebShark:/var/www
     env_file:
@@ -17,15 +21,18 @@ services:
 
   # Uses Supercronic
   cron:
-    image: webshark-app
+    build:
+      context: ./src/WebShark
+      dockerfile: Dockerfile
     container_name: webshark-cron
     restart: unless-stopped
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
     working_dir: /var/www
     depends_on:
-      - db
-      - valkey
-      - app
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_started
     volumes:
       - ./src/WebShark:/var/www
     env_file:
@@ -36,14 +43,19 @@ services:
 
   # The Queue Worker (Processes the PCAP jobs in background)
   queue-worker:
-    image: webshark-app
+    build:
+      context: ./src/WebShark
+      dockerfile: Dockerfile
     restart: unless-stopped
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
     working_dir: /var/www
     depends_on:
-      - valkey
-      - db
-      - app
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_started
+      app:
+        condition: service_started
     volumes:
       - ./src/WebShark:/var/www
     env_file:
@@ -76,10 +88,13 @@ services:
       POSTGRES_DB: ${DB_DATABASE}
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - webshark-net
 
@@ -99,19 +114,16 @@ services:
     container_name: webshark-node
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
     working_dir: /var/www
-    environment:
-      - npm_config_cache=/tmp/.npm-cache
     env_file:
       - ./src/WebShark/.env
     volumes:
       - ./src/WebShark:/var/www
-      # Define a volume inside the container so the previous one does not overwrite installed npm packages
-      - /var/www/node_modules
     ports:
       - "5173:5173"
     command: npm run dev
     networks:
       - webshark-net
+
 networks:
   webshark-net:
     driver: bridge
