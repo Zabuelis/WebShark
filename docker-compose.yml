@@ -3,6 +3,7 @@ services:
     build:
       context: ./src/WebShark
       dockerfile: Dockerfile
+    image: webshark-app
     container_name: webshark-app
     restart: unless-stopped
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
@@ -16,9 +17,7 @@ services:
 
   # Uses Supercronic
   cron:
-    build:
-      context: ./src/WebShark
-      dockerfile: Dockerfile
+    image: webshark-app
     container_name: webshark-cron
     restart: unless-stopped
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
@@ -37,9 +36,7 @@ services:
 
   # The Queue Worker (Processes the PCAP jobs in background)
   queue-worker:
-    build:
-      context: ./src/WebShark
-      dockerfile: Dockerfile
+    image: webshark-app
     restart: unless-stopped
     user: "${WWWUSER:-1000}:${WWWGROUP:-1000}"
     working_dir: /var/www
@@ -90,6 +87,7 @@ services:
   valkey:
     image: valkey/valkey:9.0.3-alpine
     container_name: webshark-valkey
+    restart: unless-stopped
     networks:
       - webshark-net
 

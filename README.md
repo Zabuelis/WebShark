@@ -144,3 +144,14 @@ sudo docker exec -it webshark-app php artisan test
 ```bash
 sudo docker compose --env-file src/WebShark/.env up -d --scale queue-worker=3
 ```
+
+
+
+cp src/WebShark/.env.example src/WebShark/.env
+
+sudo docker compose --env-file src/WebShark/.env up -d --build
+
+sudo docker exec -it webshark-app php artisan key:generate
+sudo docker exec -it webshark-app php artisan storage:link
+sudo docker exec -it webshark-app php artisan migrate
+

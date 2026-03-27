@@ -1,4 +1,4 @@
-FROM php:8.4-fpm
+FROM php:8.4-fpm-alpine
 
 # Install system dependencies & Python
 RUN apt-get update && apt-get install -y \
@@ -42,9 +42,18 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www
 
+# Copy composer files first
+COPY ./composer.json ./composer.lock ./
+
+# Install PHP dependencies
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader
+
 # Install Python dependencies
 COPY ./scapy/requirements.txt ./scapy_reqs.txt
 RUN pip3 install --no-cache-dir -r ./scapy_reqs.txt --break-system-packages
+
+# Copy the rest of the application
+COPY . .
 
 # Increase PHP memory limit
 RUN echo "memory_limit=1G" > /usr/local/etc/php/conf.d/memory-limit.ini
