@@ -25,4 +25,3 @@ COPY package*.json ./
 RUN npm install
 # Change the ownership of the node_modules file to container user (packages were installed using root user)
 RUN chown -R node:node /var/www/node_modules
-```
