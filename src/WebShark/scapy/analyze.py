@@ -15,7 +15,7 @@ import subprocess
 
 l7_protocols = {
     # HTTP 1/1.1 fields
-    "http1_fields": [ "http.request", "http.response", "http.request.version", "http.request.method", "http.request.uri", "http.response.code", "http.response.phrase" ],
+    "http1_fields": [ "http.request.version", "http.request.method", "http.request.uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection"],
     # DNS fields
 }
 
@@ -107,19 +107,23 @@ def handle_http1(packet):
         "protocol": "HTTP",
         "version": None
     }
-    if packet.get("http.request") != None:
+    if packet.get("http.request.version") is not None:
         http_header.update({"version": packet.get("http.request.version")})
         http_header["request_method"] = packet.get("http.request.method")
-    else:
+    elif packet.get("http.response.version") is not None:
         http_header.update({"version": packet.get("http.response.version")})
         http_header["response_code"] = packet.get("http.response.code")
+    else:
+        return {}
+    http_header["user_agent"] = packet.get("http.user_agent")
+    http_header["keep_alive"] = packet.get("http.connection")
     return http_header
 
 register("L7", "HTTP1", handle_http1)
 
 
 def identify_l7(packet):
-    if packet.get("http.request") or packet.get("http.response") != None:
+    if packet.get("http.request.version") or packet.get("http.response.version") is not None:
         return "HTTP1"
     return None
     
@@ -143,10 +147,10 @@ def analyze_tshark(packet):
 def execute_tshark(file_path):
     # Construct required field string
     l7_fields = []
-    if l7_protocols != None:
+    if l7_protocols is not None:
         for l7_protocol in l7_protocols:
             l7_protocol_fields = l7_protocols.get(l7_protocol)
-            if l7_protocol_fields != None:
+            if l7_protocol_fields is not None:
                     for l7_field in l7_protocol_fields:
                         l7_fields.extend(["-e", l7_field])    
         
@@ -154,17 +158,17 @@ def execute_tshark(file_path):
         "-T", "fields",
         "-e", "frame.number",
         *l7_fields,
-        "-E", "separator=;",    # Separate by ;
+        "-E", "separator=\t",    # Separate by tab (needs to be unique in case it is encountered in a packets separation breaks)
         "-E", "header=y"    # Return headers
     ], stdout=subprocess.PIPE, text=True)
 
     # First line returns a header with extracted field names
-    header = packet.stdout.readline().replace("\n", "").split(";")
+    header = packet.stdout.readline().replace("\n", "").split("\t")
 
     # Parse other packets, one by one
     for packet in packet.stdout:
         # Join columns with header values into a dict
-        packet = packet.replace("\n", "").split(";")
+        packet = packet.replace("\n", "").split("\t")
         packet = dict(zip(header, packet))
 
         yield analyze_tshark(packet)
