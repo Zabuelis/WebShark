@@ -11,13 +11,16 @@ import subprocess
 # A dict is a data structure that maps keys to values (like hashmap in other languages).
 # in our case dict that maps: layer -> protocol name -> function.
 
-# Define protocol fields for retreival. All of them can be found here  https://www.wireshark.org/docs/dfref/
-
+# Define upper protocol fields for retreival. All of them can be found here  https://www.wireshark.org/docs/dfref/
 l7_protocols = {
     # HTTP 1/1.1 fields
-    "http1_fields": [ "http.request.version", "http.request.method", "http.request.uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection"],
+    "http1_fields": [ "http.request.version", "http.authorization", "http.response.version", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection", "http.response.phrase"],
     # DNS fields
+    "dns_fields": [ "dns.id", "dns.flags", "dns.flags.response", "dns.qry.name", "dns.qry.type", "dns.resp.name", "dns.resp.type" ]
 }
+# Used to separate fields inside the return of tshark command
+# Unique symbol which will never be encountered in real packet data, although crafted packets with this symbol will cause desync (json parsing is better but slower)
+field_separator = "\u001f"   # Special ascii character Unit Separator
 
 
 handlers = {
@@ -107,30 +110,56 @@ def handle_http1(packet):
         "protocol": "HTTP",
         "version": None
     }
-    if packet.get("http.request.version") is not None:
+    if packet.get("http.request.version"):
         http_header.update({"version": packet.get("http.request.version")})
         http_header["request_method"] = packet.get("http.request.method")
-    elif packet.get("http.response.version") is not None:
+        http_header["request_uri"] = packet.get("http.request.uri")
+        http_header["full_uri"] = packet.get("http.request.full_uri")
+        http_header["user_agent"] = packet.get("http.user_agent")
+        http_header["user_credentials"] = packet.get("http.authorization")
+    elif packet.get("http.response.version"):
         http_header.update({"version": packet.get("http.response.version")})
         http_header["response_code"] = packet.get("http.response.code")
+        http_header["response_phrase"] = packet.get("http.response.phrase")
     else:
         return {}
-    http_header["user_agent"] = packet.get("http.user_agent")
     http_header["keep_alive"] = packet.get("http.connection")
     return http_header
 
+def handle_dns(packet):
+    dns_header = {
+        "protocol": "DNS",
+        "transaction_id": packet.get("dns.id"),
+        "flags": packet.get("dns.flags")
+    }
+    if packet.get("dns.flags.response") == "False":
+        dns_header["type"] = "query"
+        dns_header["query_name"] = packet.get("dns.qry.name")
+        dns_header["query_type"] = packet.get("dns.qry.type")
+    elif packet.get("dns.flags.response") == "True":
+        dns_header["type"] = "response"
+        dns_header["response_name"] = packet.get("dns.resp.name")
+        dns_header["response_type"] = packet.get("dns.resp.type")
+    else:
+        return {}
+    
+    return dns_header
+
+
 register("L7", "HTTP1", handle_http1)
+register("L7", "DNS", handle_dns)
 
 
 def identify_l7(packet):
-    if packet.get("http.request.version") or packet.get("http.response.version") is not None:
+    if packet.get("http.request.version") or packet.get("http.response.version"):
         return "HTTP1"
+    elif packet.get("dns.id"):
+        return "DNS"
     return None
     
 def analyze_tshark(packet):
     result = {
         "layers":{
-            "L6": {},
             "L7": {},
         }
     }
@@ -154,26 +183,28 @@ def execute_tshark(file_path):
                     for l7_field in l7_protocol_fields:
                         l7_fields.extend(["-e", l7_field])    
         
-    packet = subprocess.Popen(["tshark", "-r", file_path,
+    tshark_process = subprocess.Popen(["tshark", "-r", file_path,
         "-T", "fields",
         "-e", "frame.number",
         *l7_fields,
-        "-E", "separator=\t",    # Separate by tab (needs to be unique in case it is encountered in a packets separation breaks)
+        "-E", f"separator={field_separator}",
         "-E", "header=y"    # Return headers
-    ], stdout=subprocess.PIPE, text=True)
+    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     # First line returns a header with extracted field names
-    header = packet.stdout.readline().replace("\n", "").split("\t")
+    header = tshark_process.stdout.readline().replace("\n", "").split(field_separator)
 
     # Parse other packets, one by one
-    for packet in packet.stdout:
+    for packet in tshark_process.stdout:
         # Join columns with header values into a dict
-        packet = packet.replace("\n", "").split("\t")
+        packet = packet.replace("\n", "").split(field_separator)
         packet = dict(zip(header, packet))
 
         yield analyze_tshark(packet)
 
-    packet.wait()
+    # Wait for the process to finish
+    tshark_process.wait()
+
 
 # Hex dump fallback for unknown protocols
 def get_hex_dump(pkt):
