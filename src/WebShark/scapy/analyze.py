@@ -21,7 +21,8 @@ tshark_protocols = {
     # DHCPv4 fields
     "dhcp_fields": [ "dhcp.id", "dhcp.ip.client", "dhcp.ip.relay", "dhcp.ip.server", "dhcp.ip.your",  "dhcp.option.dhcp", "dhcp.option.subnet_mask", "dhcp.option.request_list_item"],
     # TLS fileds
-    "tls_fields": [ "tls.app_data_proto", "tls.app_data", "tls.record.version", "tls.record.length" ]
+    "tls_fields": [ "tls.app_data_proto", "tls.app_data", "tls.record.version", "tls.record.length" ],
+    "ssh_fields" : [ "ssh.protocol", "ssh.direction" ]
 }
 # Used to separate fields inside the return of tshark command
 # Unique symbol which will never be encountered in real packet data, although crafted packets with this symbol will cause desync (json parsing is better but slower)
@@ -176,16 +177,25 @@ def handle_dhcp(packet):
 
 def handle_tls(packet):
     return {
+        "protocol": "TLS",
         "version": protocol_contexts.tls_name_versions.get(packet.get("tls.record.version")),
         "record_length": packet.get("tls.record.length"),
         "encrypted_protocol": packet.get("tls.app_data_proto"),
         "encrypted_content": packet.get("tls.app_data")
     }
 
+def handle_ssh(packet):
+    return {
+        "protocol": "SSH",
+        "ssh_version": packet.get("ssh.protocol"),
+        "ssh_direction": packet.get("ssh.direction")
+    }
+
 register("L7", "TLS", handle_tls)
 register("L7", "HTTP1", handle_http1)
 register("L7", "DNS", handle_dns)
 register("L7", "DHCP", handle_dhcp)
+register("L7", "SSH", handle_ssh)
 
 def identify_l7(packet):
     if packet.get("http.request.version") or packet.get("http.response.version"):
@@ -196,6 +206,8 @@ def identify_l7(packet):
         return "DHCP"
     elif packet.get("tls.record.version"):
         return "TLS"
+    elif packet.get("ssh.protocol"):
+        return "SSH"
     return None
     
 def analyze_tshark(packet):
