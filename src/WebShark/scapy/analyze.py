@@ -5,6 +5,7 @@ import psycopg2.extras
 import json
 from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP
 import subprocess
+from analyzer_modules import *
 
 # So, in our case we have layers: L3, L4 and L7. Each layer has its own registry.
 # The registry is a dict that maps the protocol name to the function that can handle it.
@@ -12,13 +13,15 @@ import subprocess
 # in our case dict that maps: layer -> protocol name -> function.
 
 # Define upper protocol fields for retreival. All of them can be found here  https://www.wireshark.org/docs/dfref/
-l7_protocols = {
+tshark_protocols = {
     # HTTP 1/1.1 fields
     "http1_fields": [ "http.request.version", "http.authorization", "http.response.version", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection", "http.response.phrase"],
     # DNS fields
     "dns_fields": [ "dns.id", "dns.flags", "dns.flags.response", "dns.qry.name", "dns.qry.type", "dns.resp.name", "dns.resp.type" ],
     # DHCPv4 fields
-    "dhcp_fields": [ "dhcp.id", "dhcp.ip.client", "dhcp.ip.relay", "dhcp.ip.server", "dhcp.ip.your",  "dhcp.option.dhcp", "dhcp.option.subnet_mask", "dhcp.option.request_list_item"]
+    "dhcp_fields": [ "dhcp.id", "dhcp.ip.client", "dhcp.ip.relay", "dhcp.ip.server", "dhcp.ip.your",  "dhcp.option.dhcp", "dhcp.option.subnet_mask", "dhcp.option.request_list_item"],
+    # TLS fileds
+    "tls_fields": [ "tls.app_data_proto", "tls.app_data", "tls.record.version", "tls.record.length" ]
 }
 # Used to separate fields inside the return of tshark command
 # Unique symbol which will never be encountered in real packet data, although crafted packets with this symbol will cause desync (json parsing is better but slower)
@@ -105,8 +108,7 @@ register("L4", "TCP", handle_tcp)
 register("L4", "UDP", handle_udp)
 register("L4", "ICMP", handle_icmp)
 
-# Handle L7
-
+# Handle L7 protocols
 def handle_http1(packet):
     http_header = {
         "protocol": "HTTP",
@@ -157,7 +159,7 @@ def handle_dhcp(packet):
         "your_ip_address": packet.get("dhcp.ip.relay"),
         "dhcp_message_type": packet.get("dhcp.option.dhcp"),
     }
-    # There are many more (https://en.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol#DHCP_message_types), these are the common ones
+    # There are many more message types (https://en.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol#DHCP_message_types), these are the basic ones
     if dhcp_header["dhcp_message_type"] == "1":
         dhcp_header.update({"dhcp_message_type": "1 (DHCPDISCOVER)"})
         dhcp_header["request_list"] = packet.get("dhcp.option.request_list_item")
@@ -172,11 +174,18 @@ def handle_dhcp(packet):
 
     return dhcp_header
 
+def handle_tls(packet):
+    return {
+        "version": protocol_contexts.tls_name_versions.get(packet.get("tls.record.version")),
+        "record_length": packet.get("tls.record.length"),
+        "encrypted_protocol": packet.get("tls.app_data_proto"),
+        "encrypted_content": packet.get("tls.app_data")
+    }
 
+register("L7", "TLS", handle_tls)
 register("L7", "HTTP1", handle_http1)
 register("L7", "DNS", handle_dns)
 register("L7", "DHCP", handle_dhcp)
-
 
 def identify_l7(packet):
     if packet.get("http.request.version") or packet.get("http.response.version"):
@@ -185,6 +194,8 @@ def identify_l7(packet):
         return "DNS"
     elif packet.get("dhcp.id"):
         return "DHCP"
+    elif packet.get("tls.record.version"):
+        return "TLS"
     return None
     
 def analyze_tshark(packet):
@@ -205,19 +216,19 @@ def analyze_tshark(packet):
 # Subprocess uses a pipe to receive data from tshark (only a limited amount of data is stored in the memory).
 def execute_tshark(file_path):
     # Construct required field string
-    l7_fields = []
-    if l7_protocols is not None:
-        for l7_protocol in l7_protocols:
-            l7_protocol_fields = l7_protocols.get(l7_protocol)
-            if l7_protocol_fields is not None:
-                    for l7_field in l7_protocol_fields:
-                        l7_fields.extend(["-e", l7_field])
+    analysis_fields = []
+    if tshark_protocols is not None:
+        for protocol in tshark_protocols:
+            protocol_fields = tshark_protocols.get(protocol)
+            if protocol_fields is not None:
+                    for field in protocol_fields:
+                        analysis_fields.extend(["-e", field])
     # If tshark becomes a bottleneck it could be optimized to only parse through the needed protocols
     # In that case synchronization would break. Potential solution would be to insert upper layer data after scapy processing 
     tshark_process = subprocess.Popen(["tshark", "-r", file_path,
         "-T", "fields",
         "-e", "frame.number",
-        *l7_fields,
+        *analysis_fields,
         "-E", f"separator={field_separator}",
         "-E", "header=y"    # Return headers
     ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -332,7 +343,8 @@ with PcapReader(file_path) as reader:
     row_limit = 1000
     query = """INSERT INTO packet 
         (
-            redis_id, 
+            redis_id,
+            packet_number,
             l3_protocol,
             src_ip, 
             dst_ip, 
@@ -341,7 +353,7 @@ with PcapReader(file_path) as reader:
             dst_port,
             l4_protocol,
             l7_attributes
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
     tshark_stream = execute_tshark(file_path)
     rows = []
     for index, (pkt, tshark_pkt) in enumerate(zip(reader, tshark_stream), start=1):
@@ -349,6 +361,7 @@ with PcapReader(file_path) as reader:
         # Make a list of 1000 tuples and then commit to DB
         rows.append((
             redis_id, 
+            result["id"],
             result["layers"]["L3"].get("protocol"),
             result["layers"]["L3"].get("src"), 
             result["layers"]["L3"].get("dst"), 
@@ -356,7 +369,7 @@ with PcapReader(file_path) as reader:
             result["layers"]["L4"].get("src_port"), 
             result["layers"]["L4"].get("dst_port"),
             result["layers"]["L4"].get("protocol"),
-            json.dumps(tshark_pkt)
+            json.dumps(tshark_pkt["layers"]["L7"])
         ))
 
         # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required

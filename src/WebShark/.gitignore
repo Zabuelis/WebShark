@@ -32,3 +32,5 @@ auth.json
 /resources/js/actions
 /resources/js/routes
 /venv
+
+/scapy/analyzer_modules/__pycache__
