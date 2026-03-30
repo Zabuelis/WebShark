@@ -3,7 +3,7 @@ import os
 import psycopg2
 import psycopg2.extras
 import json
-from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP, DNS
+from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP
 import subprocess
 
 # So, in our case we have layers: L3, L4 and L7. Each layer has its own registry.
@@ -16,7 +16,9 @@ l7_protocols = {
     # HTTP 1/1.1 fields
     "http1_fields": [ "http.request.version", "http.authorization", "http.response.version", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection", "http.response.phrase"],
     # DNS fields
-    "dns_fields": [ "dns.id", "dns.flags", "dns.flags.response", "dns.qry.name", "dns.qry.type", "dns.resp.name", "dns.resp.type" ]
+    "dns_fields": [ "dns.id", "dns.flags", "dns.flags.response", "dns.qry.name", "dns.qry.type", "dns.resp.name", "dns.resp.type" ],
+    # DHCPv4 fields
+    "dhcp_fields": [ "dhcp.id", "dhcp.ip.client", "dhcp.ip.relay", "dhcp.ip.server", "dhcp.ip.your",  "dhcp.option.dhcp", "dhcp.option.subnet_mask", "dhcp.option.request_list_item"]
 }
 # Used to separate fields inside the return of tshark command
 # Unique symbol which will never be encountered in real packet data, although crafted packets with this symbol will cause desync (json parsing is better but slower)
@@ -145,9 +147,35 @@ def handle_dns(packet):
     
     return dns_header
 
+def handle_dhcp(packet):
+    dhcp_header = {
+        "protocol": "DHCP",
+        "transaction_id": packet.get("dhcp.id"),
+        "client_ip_address": packet.get("dhcp.ip.client"),
+        "relay_ip_address": packet.get("dhcp.ip.relay"),
+        "server_ip_address": packet.get("dhcp.ip.server"),
+        "your_ip_address": packet.get("dhcp.ip.relay"),
+        "dhcp_message_type": packet.get("dhcp.option.dhcp"),
+    }
+    # There are many more (https://en.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol#DHCP_message_types), these are the common ones
+    if dhcp_header["dhcp_message_type"] == "1":
+        dhcp_header.update({"dhcp_message_type": "1 (DHCPDISCOVER)"})
+        dhcp_header["request_list"] = packet.get("dhcp.option.request_list_item")
+    elif dhcp_header["dhcp_message_type"] == "2":
+        dhcp_header.update({"dhcp_message_type": "2 (DHCPOFFER)"})
+        dhcp_header["subnet_mask"] = packet.get("dhcp.option.subnet_mask")
+    elif dhcp_header["dhcp_message_type"] == "3":
+        dhcp_header.update({"dhcp_message_type": "3 (DHCPREQUEST)"})
+        dhcp_header["request_list"] = packet.get("dhcp.option.request_list_item")
+    elif dhcp_header["dhcp_message_type"] == "5":
+        dhcp_header.update({"dhcp_message_type": "5 (DHCPACK)"})
+
+    return dhcp_header
+
 
 register("L7", "HTTP1", handle_http1)
 register("L7", "DNS", handle_dns)
+register("L7", "DHCP", handle_dhcp)
 
 
 def identify_l7(packet):
@@ -155,6 +183,8 @@ def identify_l7(packet):
         return "HTTP1"
     elif packet.get("dns.id"):
         return "DNS"
+    elif packet.get("dhcp.id"):
+        return "DHCP"
     return None
     
 def analyze_tshark(packet):
@@ -181,8 +211,9 @@ def execute_tshark(file_path):
             l7_protocol_fields = l7_protocols.get(l7_protocol)
             if l7_protocol_fields is not None:
                     for l7_field in l7_protocol_fields:
-                        l7_fields.extend(["-e", l7_field])    
-        
+                        l7_fields.extend(["-e", l7_field])
+    # If tshark becomes a bottleneck it could be optimized to only parse through the needed protocols
+    # In that case synchronization would break. Potential solution would be to insert upper layer data after scapy processing 
     tshark_process = subprocess.Popen(["tshark", "-r", file_path,
         "-T", "fields",
         "-e", "frame.number",
