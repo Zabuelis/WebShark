@@ -218,7 +218,7 @@ def analyze_tshark(packet):
     }
 
     l7_name = identify_l7(packet)
-    if l7_name in handlers["L7"]:
+    if l7_name and l7_name in handlers["L7"]:
         result["layers"]["L7"] = handlers["L7"][l7_name](packet)
     
     return result
@@ -237,16 +237,25 @@ def execute_tshark(file_path):
                         analysis_fields.extend(["-e", field])
     # If tshark becomes a bottleneck it could be optimized to only parse through the needed protocols
     # In that case synchronization would break. Potential solution would be to insert upper layer data after scapy processing 
-    tshark_process = subprocess.Popen(["tshark", "-r", file_path,
-        "-T", "fields",
-        "-e", "frame.number",
-        *analysis_fields,
-        "-E", f"separator={field_separator}",
-        "-E", "header=y"    # Return headers
-    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        tshark_process = subprocess.Popen(["tshark", "-r", file_path,
+            "-T", "fields",
+            "-e", "frame.number",
+            *analysis_fields,
+            "-E", f"separator={field_separator}",
+            "-E", "header=y"    # Return headers
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    except:
+        raise Exception("Tshark failed to start")
+
+    error_message = tshark_process.stderr.readline()
+    if error_message:
+        raise Exception("Tshark returned an error " + error_message + tshark_process.stderr.readline())
 
     # First line returns a header with extracted field names
     header = tshark_process.stdout.readline().replace("\n", "").split(field_separator)
+    
+    
 
     # Parse other packets, one by one
     for packet in tshark_process.stdout:
@@ -341,7 +350,6 @@ if not validate_pcap(file_path):
         + json.dumps({"error": "Not a valid PCAP file"})
     )
     sys.exit(1)
-
 try:
     # Establish connection to the DB
     conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={dbPass}')
@@ -350,51 +358,56 @@ except:
     print(json.dumps({"error": "Failed to establish DB connection"}))
     sys.exit(1)
 
+try:
+    with PcapReader(file_path) as reader:
+        row_limit = 1000
+        query = """INSERT INTO packet 
+            (
+                redis_id,
+                packet_number,
+                l3_protocol,
+                src_ip, 
+                dst_ip, 
+                captured_packet_length,
+                src_port, 
+                dst_port,
+                l4_protocol,
+                l7_attributes
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+        rows = []
+        tshark_stream = execute_tshark(file_path)
+        for index, (pkt, tshark_pkt) in enumerate(zip(reader, tshark_stream), start=1):
+            result = analyze_packet(pkt, index)
+            # Make a list of 1000 tuples and then commit to DB
+            rows.append((
+                redis_id, 
+                result["id"],
+                result["layers"]["L3"].get("protocol"),
+                result["layers"]["L3"].get("src"), 
+                result["layers"]["L3"].get("dst"), 
+                result["layers"]["L3"].get("length"),
+                result["layers"]["L4"].get("src_port"), 
+                result["layers"]["L4"].get("dst_port"),
+                result["layers"]["L4"].get("protocol"),
+                json.dumps(tshark_pkt["layers"]["L7"])
+            ))
 
-with PcapReader(file_path) as reader:
-    row_limit = 1000
-    query = """INSERT INTO packet 
-        (
-            redis_id,
-            packet_number,
-            l3_protocol,
-            src_ip, 
-            dst_ip, 
-            captured_packet_length,
-            src_port, 
-            dst_port,
-            l4_protocol,
-            l7_attributes
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
-    tshark_stream = execute_tshark(file_path)
-    rows = []
-    for index, (pkt, tshark_pkt) in enumerate(zip(reader, tshark_stream), start=1):
-        result = analyze_packet(pkt, index)
-        # Make a list of 1000 tuples and then commit to DB
-        rows.append((
-            redis_id, 
-            result["id"],
-            result["layers"]["L3"].get("protocol"),
-            result["layers"]["L3"].get("src"), 
-            result["layers"]["L3"].get("dst"), 
-            result["layers"]["L3"].get("length"),
-            result["layers"]["L4"].get("src_port"), 
-            result["layers"]["L4"].get("dst_port"),
-            result["layers"]["L4"].get("protocol"),
-            json.dumps(tshark_pkt["layers"]["L7"])
-        ))
+            # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required
+            # Executing all rows tends to reduce 1-2 seconds (for 2mb file), but increases memory consumption
+            # Comparing execute_batch with executemany (~2mb file) revealed no difference despite documentation telling different
+            if len(rows) >= row_limit:
+                psycopg2.extras.execute_batch(cursor, query, rows)
+                conn.commit()
+                rows.clear()
 
-        # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required
-        # Executing all rows tends to reduce 1-2 seconds (for 2mb file), but increases memory consumption
-        # Comparing execute_batch with executemany (~2mb file) revealed no difference despite documentation telling different
-        if len(rows) >= row_limit:
-            psycopg2.extras.execute_batch(cursor, query, rows)
-            conn.commit()
-            rows.clear()
-
-if len(rows) > 0:
-    psycopg2.extras.execute_batch(cursor, query, rows)
-    conn.commit()
+    if len(rows) > 0:
+        psycopg2.extras.execute_batch(cursor, query, rows)
+        conn.commit()
+except Exception as e:
+    print(json.dumps({"error": "An error has been detected " + str(e)}))
+    cursor.close()
+    conn.close()
+    sys.exit(1)
 
 # Close DB connection
 cursor.close()

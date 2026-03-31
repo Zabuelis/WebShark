@@ -18,8 +18,6 @@ class AnalyzePcap implements ShouldQueue
 
     public int $timeout = 600;
     private $filePath;
-    private $errorCounter = 0;
-    private $errorLimit = 3;
 
     public function __construct(public string $uuid, public string $fileName)
     {
@@ -40,20 +38,18 @@ class AnalyzePcap implements ShouldQueue
             ->run("$pythonPath $scriptPath $this->filePath $this->uuid");
 
         if (!$result->successful()) {
-            RedisJob::where('redis_id', '=', $this->uuid)->update([
-                'status' => 'failed',
-                'expires_at' => now()->addMinutes(10),
-            ]);
-            Log::error("Python error for {$this->uuid}: " . $result->errorOutput());
-           $this->removeFile();
+            $errorMessage = $this->extractErrorMessage(
+                $result->output(),
+                $result->errorOutput()
+            );
+            $this->updateRecord(true);
+            Log::error("Python error for {$this->uuid}: {$errorMessage}");
+            $this->removeFile();
             return;
-        }
+        } 
 
-        RedisJob::where('redis_id', '=', $this->uuid)->update([
-            'status' => 'finished',
-            'expires_at' => now()->addHours(2),
-        ]);
-       $this->removeFile();
+        $this->updateRecord(false);
+        $this->removeFile();
     }
 
     // On job fail change the status and remove the file
@@ -71,5 +67,36 @@ class AnalyzePcap implements ShouldQueue
             unlink($this->filePath);
         }
     }
+
+    private function updateRecord(bool $hasFailed): void{
+        if($hasFailed){
+            RedisJob::where('redis_id', '=', $this->uuid)->update([
+                'status' => 'failed',
+                'expires_at' => now()->addMinutes(10),
+            ]);
+        } else {
+            RedisJob::where('redis_id', '=', $this->uuid)->update([
+                'status' => 'finished',
+                'expires_at' => now()->addHours(2),
+            ]);
+        }
+    }
+
+    private function extractErrorMessage(string $stdout, string $stderr): string
+    {
+        // First, try parsing structured JSON from stdout
+        $decoded = json_decode(trim($stdout), true);
+        if ($decoded && isset($decoded['error'])) {
+            return $decoded['error'];
+        }
+
+        // Fall back to stderr
+        if (!empty(trim($stderr))) {
+            return trim($stderr);
+        }
+
+        return 'Analysis failed due to an system error. Unknown error occurred.';
+    }
+
 
 }
