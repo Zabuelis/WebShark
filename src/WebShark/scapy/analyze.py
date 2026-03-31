@@ -235,6 +235,7 @@ def execute_tshark(file_path):
             if protocol_fields is not None:
                     for field in protocol_fields:
                         analysis_fields.extend(["-e", field])
+
     # If tshark becomes a bottleneck it could be optimized to only parse through the needed protocols
     # In that case synchronization would break. Potential solution would be to insert upper layer data after scapy processing 
     try:
@@ -244,18 +245,21 @@ def execute_tshark(file_path):
             *analysis_fields,
             "-E", f"separator={field_separator}",
             "-E", "header=y"    # Return headers
-        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            # Merge stdout pipe with stderr from subprocess to main process
+            # Done this way because if stderr pipe is empty and you try to read it the program buffers (did not manage to find a better alternative that would still keep error messages from tshark)
+        ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     except:
         raise Exception("Tshark failed to start")
 
-    error_message = tshark_process.stderr.readline()
-    if error_message:
-        raise Exception("Tshark returned an error " + error_message + tshark_process.stderr.readline())
-
-    # First line returns a header with extracted field names
-    header = tshark_process.stdout.readline().replace("\n", "").split(field_separator)
-    
-    
+    # First line returns a header with extracted field names, if it contains "tshark:" it means tshark has encountered an error
+    header = tshark_process.stdout.readline()
+    if "tshark:" in header:
+        error_message = tshark_process.stdout.readline()
+        tshark_process.kill()
+        tshark_process.wait()
+        raise Exception("Tshark has encountered some errors: " + header + error_message)
+    else:
+        header = header.replace("\n", "").split(field_separator)
 
     # Parse other packets, one by one
     for packet in tshark_process.stdout:
@@ -404,10 +408,9 @@ try:
         psycopg2.extras.execute_batch(cursor, query, rows)
         conn.commit()
 except Exception as e:
-    print(json.dumps({"error": "An error has been detected " + str(e)}))
     cursor.close()
     conn.close()
-    sys.exit(1)
+    raise e
 
 # Close DB connection
 cursor.close()
