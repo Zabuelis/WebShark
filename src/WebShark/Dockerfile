@@ -25,6 +25,15 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 # Install PHP extensions
 RUN docker-php-ext-install pdo_pgsql mbstring exif pcntl bcmath gd
 
+# Install Supercronic
+ARG SUPERCRONIC_VERSION=v0.2.29
+RUN curl -fsSLO "https://github.com/aptible/supercronic/releases/download/${SUPERCRONIC_VERSION}/supercronic-linux-amd64" \
+    && chmod +x supercronic-linux-amd64 \
+    && mv supercronic-linux-amd64 /usr/local/bin/supercronic
+
+# Create a crontab file for Laravel
+RUN echo "* * * * * php /var/www/artisan schedule:run" > /etc/crontab
+
 # Install and enable Redis extension
 RUN pecl install redis && docker-php-ext-enable redis
 

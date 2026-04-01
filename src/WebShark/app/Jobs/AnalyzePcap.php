@@ -42,23 +42,20 @@ class AnalyzePcap implements ShouldQueue
                 $result->output(),
                 $result->errorOutput()
             );
-            $this->updateRecord(true);
+            $this->updateRecord(true, $errorMessage);
             Log::error("Python error for {$this->uuid}: {$errorMessage}");
             $this->removeFile();
             return;
         } 
 
-        $this->updateRecord(false);
+        $this->updateRecord(false, "");
         $this->removeFile();
     }
 
     // On job fail change the status and remove the file
     public function failed(?Throwable $exception): void
     {
-        RedisJob::where('redis_id', '=', $this->uuid)->update([
-            'status' => 'failed',
-            'expires_at' => now()->addMinutes(10),
-        ]);
+        $this->updateRecord(true, $exception?->getMessage() ?? 'Analysis failed due to an system error. Error code: 1');
         $this->removeFile();
     }
 
@@ -68,10 +65,11 @@ class AnalyzePcap implements ShouldQueue
         }
     }
 
-    private function updateRecord(bool $hasFailed): void{
+    private function updateRecord(bool $hasFailed, $errorMessage): void{
         if($hasFailed){
             RedisJob::where('redis_id', '=', $this->uuid)->update([
                 'status' => 'failed',
+                'error_message' => $errorMessage,
                 'expires_at' => now()->addMinutes(10),
             ]);
         } else {
@@ -82,6 +80,9 @@ class AnalyzePcap implements ShouldQueue
         }
     }
 
+    /**
+     * Try to extract a user-friendly error from the Python script's output.
+     */
     private function extractErrorMessage(string $stdout, string $stderr): string
     {
         // First, try parsing structured JSON from stdout
@@ -97,6 +98,5 @@ class AnalyzePcap implements ShouldQueue
 
         return 'Analysis failed due to an system error. Unknown error occurred.';
     }
-
 
 }
