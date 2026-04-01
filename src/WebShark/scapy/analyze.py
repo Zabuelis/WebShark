@@ -12,20 +12,22 @@ from analyzer_modules import *
 # A dict is a data structure that maps keys to values (like hashmap in other languages).
 # in our case dict that maps: layer -> protocol name -> function.
 
-# Define upper protocol fields for retreival. All of them can be found here  https://www.wireshark.org/docs/dfref/
+# Define upper protocol fields for retreival. All of them can be found here https://www.wireshark.org/docs/dfref/
 tshark_protocols = {
     # HTTP 1/1.1 fields
-    "http1_fields": [ "http.request.version", "http.authorization", "http.response.version", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection", "http.response.phrase"],
+    "http1_fields": [ "http.request.version", "http.authorization", "http.response.version", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection", "http.response.phrase", "http.file_data", "http.content_length"],
     # DNS fields
     "dns_fields": [ "dns.id", "dns.flags", "dns.flags.response", "dns.qry.name", "dns.qry.type", "dns.resp.name", "dns.resp.type" ],
     # DHCPv4 fields
     "dhcp_fields": [ "dhcp.id", "dhcp.ip.client", "dhcp.ip.relay", "dhcp.ip.server", "dhcp.ip.your",  "dhcp.option.dhcp", "dhcp.option.subnet_mask", "dhcp.option.request_list_item"],
-    # TLS fileds
+    # TLS fields
     "tls_fields": [ "tls.app_data_proto", "tls.app_data", "tls.record.version", "tls.record.length" ],
+    # SSH fields
     "ssh_fields" : [ "ssh.protocol", "ssh.direction" ]
 }
+
 # Used to separate fields inside the return of tshark command
-# Unique symbol which will never be encountered in real packet data, although crafted packets with this symbol will cause desync (json parsing is better but slower)
+# Unique symbol which will never be encountered in real packet data, improvement is to use ek (ElasticSearch format)
 field_separator = "\u001f"   # Special ascii character Unit Separator
 
 
@@ -113,7 +115,9 @@ register("L4", "ICMP", handle_icmp)
 def handle_http1(packet):
     http_header = {
         "protocol": "HTTP",
-        "version": None
+        "version": None,
+        "content_length": packet.get("http.content_length"),
+        "payload": packet.get("http.file_data")
     }
     if packet.get("http.request.version"):
         http_header.update({"version": packet.get("http.request.version")})
@@ -158,20 +162,20 @@ def handle_dhcp(packet):
         "relay_ip_address": packet.get("dhcp.ip.relay"),
         "server_ip_address": packet.get("dhcp.ip.server"),
         "your_ip_address": packet.get("dhcp.ip.relay"),
-        "dhcp_message_type": packet.get("dhcp.option.dhcp"),
+        "dhcp_message_type": protocol_contexts.dhcp_message_type.get(packet.get("dhcp.option.dhcp")),
+        "subnet_mask": packet.get("dhcp.option.subnet_mask"),
+        "request_list": packet.get("dhcp.option.request_list_item")
     }
-    # There are many more message types (https://en.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol#DHCP_message_types), these are the basic ones
-    if dhcp_header["dhcp_message_type"] == "1":
-        dhcp_header.update({"dhcp_message_type": "1 (DHCPDISCOVER)"})
-        dhcp_header["request_list"] = packet.get("dhcp.option.request_list_item")
-    elif dhcp_header["dhcp_message_type"] == "2":
-        dhcp_header.update({"dhcp_message_type": "2 (DHCPOFFER)"})
-        dhcp_header["subnet_mask"] = packet.get("dhcp.option.subnet_mask")
-    elif dhcp_header["dhcp_message_type"] == "3":
-        dhcp_header.update({"dhcp_message_type": "3 (DHCPREQUEST)"})
-        dhcp_header["request_list"] = packet.get("dhcp.option.request_list_item")
-    elif dhcp_header["dhcp_message_type"] == "5":
-        dhcp_header.update({"dhcp_message_type": "5 (DHCPACK)"})
+    # Convert request list from code to name
+    if dhcp_header["request_list"]:
+        requests = dhcp_header["request_list"].split(",")
+        list = ""
+        for request in requests:
+            request = request.strip()
+            context = protocol_contexts.dhcp_request_list.get(request)
+            if context:
+                list += context
+        dhcp_header["request_list"] = list
 
     return dhcp_header
 
@@ -227,17 +231,17 @@ def analyze_tshark(packet):
 # Create a subprocess (same as fork) that runs tshark
 # Subprocess uses a pipe to receive data from tshark (only a limited amount of data is stored in the memory).
 def execute_tshark(file_path):
-    # Construct required field string
+    # Construct argument string of required fields
     analysis_fields = []
-    if tshark_protocols is not None:
+    if tshark_protocols:
         for protocol in tshark_protocols:
             protocol_fields = tshark_protocols.get(protocol)
-            if protocol_fields is not None:
+            if protocol_fields:
                     for field in protocol_fields:
                         analysis_fields.extend(["-e", field])
 
     # If tshark becomes a bottleneck it could be optimized to only parse through the needed protocols
-    # In that case synchronization would break. Potential solution would be to insert upper layer data after scapy processing 
+    # In that case synchronization would break. Potential solution would be to insert upper layer data after scapy processing
     try:
         tshark_process = subprocess.Popen(["tshark", "-r", file_path,
             "-T", "fields",
@@ -245,8 +249,7 @@ def execute_tshark(file_path):
             *analysis_fields,
             "-E", f"separator={field_separator}",
             "-E", "header=y"    # Return headers
-            # Merge stdout pipe with stderr from subprocess to main process
-            # Done this way because if stderr pipe is empty and you try to read it the program buffers (did not manage to find a better alternative that would still keep error messages from tshark)
+            # Use the same pipe for stoud and stderr, avoids blocking read in a simplified manner
         ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     except:
         raise Exception("Tshark failed to start")
