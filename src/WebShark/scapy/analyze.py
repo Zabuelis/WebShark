@@ -4,12 +4,33 @@ from time import sleep
 import psycopg2
 import psycopg2.extras
 import json
-from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP, DNS
+from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP
+import subprocess
+from analyzer_modules import *
 
 # So, in our case we have layers: L3, L4 and L7. Each layer has its own registry.
 # The registry is a dict that maps the protocol name to the function that can handle it.
 # A dict is a data structure that maps keys to values (like hashmap in other languages).
 # in our case dict that maps: layer -> protocol name -> function.
+
+# Define upper protocol fields for retreival. All of them can be found here https://www.wireshark.org/docs/dfref/
+tshark_protocols = {
+    # HTTP 1/1.1 fields
+    "http1_fields": [ "http.request.version", "http.authorization", "http.response.version", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection", "http.response.phrase", "http.file_data", "http.content_length"],
+    # DNS fields
+    "dns_fields": [ "dns.id", "dns.flags", "dns.flags.response", "dns.qry.name", "dns.qry.type", "dns.resp.name", "dns.resp.type" ],
+    # DHCPv4 fields
+    "dhcp_fields": [ "dhcp.id", "dhcp.ip.client", "dhcp.ip.relay", "dhcp.ip.server", "dhcp.ip.your",  "dhcp.option.dhcp", "dhcp.option.subnet_mask", "dhcp.option.request_list_item"],
+    # TLS fields
+    "tls_fields": [ "tls.app_data_proto", "tls.app_data", "tls.record.version", "tls.record.length" ],
+    # SSH fields
+    "ssh_fields" : [ "ssh.protocol", "ssh.direction" ]
+}
+
+# Used to separate fields inside the return of tshark command
+# Unique symbol which will never be encountered in real packet data, improvement is to use ek (ElasticSearch format)
+field_separator = "\u001f"   # Special ascii character Unit Separator
+
 
 handlers = {
     "L3": {},
@@ -91,28 +112,170 @@ register("L4", "TCP", handle_tcp)
 register("L4", "UDP", handle_udp)
 register("L4", "ICMP", handle_icmp)
 
-# L7 handlers
-def handle_dns(pkt):
-    if DNS not in pkt:
-        return None
-    dns = pkt[DNS]
+# Handle L7 protocols
+def handle_http1(packet):
+    http_header = {
+        "protocol": "HTTP",
+        "version": None,
+        "content_length": packet.get("http.content_length"),
+        "payload": packet.get("http.file_data")
+    }
+    if packet.get("http.request.version"):
+        http_header.update({"version": packet.get("http.request.version")})
+        http_header["request_method"] = packet.get("http.request.method")
+        http_header["request_uri"] = packet.get("http.request.uri")
+        http_header["full_uri"] = packet.get("http.request.full_uri")
+        http_header["user_agent"] = packet.get("http.user_agent")
+        http_header["user_credentials"] = packet.get("http.authorization")
+    elif packet.get("http.response.version"):
+        http_header.update({"version": packet.get("http.response.version")})
+        http_header["response_code"] = packet.get("http.response.code")
+        http_header["response_phrase"] = packet.get("http.response.phrase")
+    else:
+        return {}
+    http_header["keep_alive"] = packet.get("http.connection")
+    return http_header
 
-    query = None
-    if dns.qd:
-        # dns.qd.qname = domain name in raw bytes
-        # errors="replace" = bad bytes will be replaced with a placeholder character
-        query = dns.qd.qname.decode(errors="replace") 
-
-    return {
+def handle_dns(packet):
+    dns_header = {
         "protocol": "DNS",
-        "id": dns.id,
-        "qr": dns.qr, # 0 = question, 1 = answer
-        "qd_count": dns.qdcount,
-        "an_count": dns.ancount,
-        "query": query,
+        "transaction_id": packet.get("dns.id"),
+        "flags": packet.get("dns.flags")
+    }
+    if packet.get("dns.flags.response") == "False":
+        dns_header["type"] = "query"
+        dns_header["query_name"] = packet.get("dns.qry.name")
+        dns_header["query_type"] = packet.get("dns.qry.type")
+    elif packet.get("dns.flags.response") == "True":
+        dns_header["type"] = "response"
+        dns_header["response_name"] = packet.get("dns.resp.name")
+        dns_header["response_type"] = packet.get("dns.resp.type")
+    else:
+        return {}
+    
+    return dns_header
+
+def handle_dhcp(packet):
+    dhcp_header = {
+        "protocol": "DHCP",
+        "transaction_id": packet.get("dhcp.id"),
+        "client_ip_address": packet.get("dhcp.ip.client"),
+        "relay_ip_address": packet.get("dhcp.ip.relay"),
+        "server_ip_address": packet.get("dhcp.ip.server"),
+        "your_ip_address": packet.get("dhcp.ip.relay"),
+        "dhcp_message_type": protocol_contexts.dhcp_message_type.get(packet.get("dhcp.option.dhcp")),
+        "subnet_mask": packet.get("dhcp.option.subnet_mask"),
+        "request_list": packet.get("dhcp.option.request_list_item")
+    }
+    # Convert request list from code to name
+    if dhcp_header["request_list"]:
+        requests = dhcp_header["request_list"].split(",")
+        list = ""
+        for request in requests:
+            request = request.strip()
+            context = protocol_contexts.dhcp_request_list.get(request)
+            if context:
+                list += context
+        dhcp_header["request_list"] = list
+
+    return dhcp_header
+
+def handle_tls(packet):
+    return {
+        "protocol": "TLS",
+        "version": protocol_contexts.tls_name_versions.get(packet.get("tls.record.version")),
+        "record_length": packet.get("tls.record.length"),
+        "encrypted_protocol": packet.get("tls.app_data_proto"),
+        "encrypted_content": packet.get("tls.app_data")
     }
 
+def handle_ssh(packet):
+    return {
+        "protocol": "SSH",
+        "ssh_version": packet.get("ssh.protocol"),
+        "ssh_direction": packet.get("ssh.direction")
+    }
+
+register("L7", "TLS", handle_tls)
+register("L7", "HTTP1", handle_http1)
 register("L7", "DNS", handle_dns)
+register("L7", "DHCP", handle_dhcp)
+register("L7", "SSH", handle_ssh)
+
+def identify_l7(packet):
+    if packet.get("http.request.version") or packet.get("http.response.version"):
+        return "HTTP1"
+    elif packet.get("dns.id"):
+        return "DNS"
+    elif packet.get("dhcp.id"):
+        return "DHCP"
+    elif packet.get("tls.record.version"):
+        return "TLS"
+    elif packet.get("ssh.protocol"):
+        return "SSH"
+    return None
+    
+def analyze_tshark(packet):
+    result = {
+        "layers":{
+            "L7": {},
+        }
+    }
+
+    l7_name = identify_l7(packet)
+    if l7_name and l7_name in handlers["L7"]:
+        result["layers"]["L7"] = handlers["L7"][l7_name](packet)
+    
+    return result
+    
+
+# Create a subprocess (same as fork) that runs tshark
+# Subprocess uses a pipe to receive data from tshark (only a limited amount of data is stored in the memory).
+def execute_tshark(file_path):
+    # Construct argument string of required fields
+    analysis_fields = []
+    if tshark_protocols:
+        for protocol in tshark_protocols:
+            protocol_fields = tshark_protocols.get(protocol)
+            if protocol_fields:
+                    for field in protocol_fields:
+                        analysis_fields.extend(["-e", field])
+
+    # If tshark becomes a bottleneck it could be optimized to only parse through the needed protocols
+    # In that case synchronization would break. Potential solution would be to insert upper layer data after scapy processing
+    try:
+        tshark_process = subprocess.Popen(["tshark", "-r", file_path,
+            "-T", "fields",
+            "-e", "frame.number",
+            *analysis_fields,
+            "-E", f"separator={field_separator}",
+            "-E", "header=y"    # Return headers
+            # Use the same pipe for stoud and stderr, avoids blocking read in a simplified manner
+        ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    except:
+        raise Exception("Tshark failed to start")
+
+    # First line returns a header with extracted field names, if it contains "tshark:" it means tshark has encountered an error
+    header = tshark_process.stdout.readline()
+    if "tshark:" in header:
+        error_message = tshark_process.stdout.readline()
+        tshark_process.kill()
+        tshark_process.wait()
+        raise Exception("Tshark has encountered some errors: " + header + error_message)
+    else:
+        header = header.replace("\n", "").split(field_separator)
+
+    # Parse other packets, one by one
+    for packet in tshark_process.stdout:
+        # Join columns with header values into a dict
+        packet = packet.replace("\n", "").split(field_separator)
+        packet = dict(zip(header, packet))
+
+        yield analyze_tshark(packet)
+
+    # Wait for the process to finish
+    tshark_process.wait()
+
 
 # Hex dump fallback for unknown protocols
 def get_hex_dump(pkt):
@@ -137,13 +300,6 @@ def identify_l4(pkt):
         return "UDP"
     if ICMP in pkt:
         return "ICMP"
-    return None
-
-def identify_l7(pkt):
-    if DNS in pkt:
-        return "DNS"
-    # ToDo: Add more L7 protocols (HTTP, TLS, ...)
-    # if HTTP in pkt: return "HTTP" (Scapy has no HTTP layer by default)
     return None
 
 # Validate PCAP
@@ -171,7 +327,6 @@ def analyze_packet(pkt, index):
         "layers": {
             "L3": {},
             "L4": {},
-            "L7": {},
         },
         "hex_dump": get_hex_dump(pkt),
     }
@@ -186,11 +341,6 @@ def analyze_packet(pkt, index):
     if l4_name and l4_name in handlers["L4"]:
         result["layers"]["L4"] = handlers["L4"][l4_name](pkt)
 
-    # L7
-    l7_name = identify_l7(pkt)
-    if l7_name and l7_name in handlers["L7"]:
-        result["layers"]["L7"] = handlers["L7"][l7_name](pkt)
-
     return result
 
 # Entry point
@@ -201,88 +351,96 @@ dbName = os.getenv('DB_DATABASE')
 dbUser = os.getenv('DB_USERNAME')
 dbPass = os.getenv('DB_PASSWORD')
 dbHost = os.getenv('DB_HOST')
-# Establish connection to the DB
-conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={dbPass}')
-cursor = conn.cursor()
 
 if not validate_pcap(file_path):
     print(json.dumps({"error": "Analysis failed due to an invalid PCAP file"}))
     sys.exit(1)
-
+try:
+    # Establish connection to the DB
+    conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={dbPass}')
+    cursor = conn.cursor()
+except:
+    print(json.dumps({"error": "Failed to establish DB connection"}))
+    sys.exit(1)
 total_size = os.path.getsize(file_path)
+try:
+    with PcapReader(file_path) as reader:
+        row_limit = 1000
+        query = """INSERT INTO packet 
+            (
+                redis_id,
+                packet_number,
+                l3_protocol,
+                src_ip, 
+                dst_ip, 
+                captured_packet_length,
+                src_port, 
+                dst_port,
+                l4_protocol,
+                l7_attributes,
+                timestamp,
+                raw_hex
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+        rows = []
+        tshark_stream = execute_tshark(file_path)
+        for index, (pkt, tshark_pkt) in enumerate(zip(reader, tshark_stream), start=1):
+            result = analyze_packet(pkt, index)
 
-with PcapReader(file_path) as reader:
-    row_limit = 1000
-    query = """INSERT INTO packet 
-        (
-            redis_id,
-            packet_number, 
-            l3_protocol,
-            src_ip, 
-            dst_ip, 
-            captured_packet_length,
-            src_port, 
-            dst_port,
-            l4_protocol,
-            l7_protocol,
-            timestamp,
-            raw_hex
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
-    rows = []
-    for index, pkt in enumerate(reader):
-        result = analyze_packet(pkt, index)
-
-        if index % 500 == 0:
-            current_pos = reader.f.tell()
+            if index % 500 == 0:
+                current_pos = reader.f.tell()
             
-            progress = 0
-            if total_size > 0:
-                progress = min(int((current_pos / total_size) * 100), 100)
+                progress = 0
+                if total_size > 0:
+                    progress = min(int((current_pos / total_size) * 100), 100)
             
-            try:
-                cursor.execute(
-                    "UPDATE redis_job SET progress_percentage = %s WHERE redis_id = %s", 
-                    (progress, redis_id)
-                )
+                try:
+                    cursor.execute(
+                        "UPDATE redis_job SET progress_percentage = %s WHERE redis_id = %s", 
+                        (progress, redis_id)
+                    )
+                    conn.commit()
+                except Exception as e:
+                    print(json.dumps({"error": "Failed to update progress: " + str(e)}))
+            
+            # Make a list of 1000 tuples and then commit to DB
+            rows.append((
+                redis_id, 
+                result["id"],
+                result["layers"]["L3"].get("protocol"),
+                result["layers"]["L3"].get("src"), 
+                result["layers"]["L3"].get("dst"), 
+                result["layers"]["L3"].get("length"),
+                result["layers"]["L4"].get("src_port"), 
+                result["layers"]["L4"].get("dst_port"),
+                result["layers"]["L4"].get("protocol"),
+                json.dumps(tshark_pkt["layers"]["L7"]),
+                result["timestamp"],
+                result["hex_dump"]
+            ))
+            
+            # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required
+            # Executing all rows tends to reduce 1-2 seconds (for 2mb file), but increases memory consumption
+            # Comparing execute_batch with executemany (~2mb file) revealed no difference despite documentation telling different
+            if len(rows) >= row_limit:
+                psycopg2.extras.execute_batch(cursor, query, rows)
                 conn.commit()
-            except Exception as e:
-                print(json.dumps({"error": "Failed to update progress: " + str(e)}))
+                rows.clear()
 
+    if len(rows) > 0:
+        psycopg2.extras.execute_batch(cursor, query, rows)
+        conn.commit()
 
-        # Make a list of 1000 tuples and then commit to DB
-        rows.append((
-            redis_id, 
-            index + 1,
-            result["layers"]["L3"].get("protocol"),
-            result["layers"]["L3"].get("src"), 
-            result["layers"]["L3"].get("dst"), 
-            result["layers"]["L3"].get("length"),
-            result["layers"]["L4"].get("src_port"), 
-            result["layers"]["L4"].get("dst_port"),
-            result["layers"]["L4"].get("protocol"),
-            result["layers"]["L7"].get("protocol"),
-            result["timestamp"],
-            result["hex_dump"]
-        ))
-
-        # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required
-        # Executing all rows tends to reduce 1-2 seconds (for 2mb file), but increases memory consumption
-        # Comparing execute_batch with executemany (~2mb file) revealed no difference despite documentation telling different
-        if len(rows) >= row_limit:
-            psycopg2.extras.execute_batch(cursor, query, rows)
-            conn.commit()
-            rows.clear()
-
-cursor.execute(
-    "UPDATE redis_job SET progress_percentage = 100 WHERE redis_id = %s", 
-    (redis_id,)
-)
-conn.commit()
-sleep(0.5) # Ensure the last update is visible in the UI before we close the connection
-
-if len(rows) > 0:
-    psycopg2.extras.execute_batch(cursor, query, rows)
+    cursor.execute(
+        "UPDATE redis_job SET progress_percentage = 100 WHERE redis_id = %s", 
+        (redis_id,)
+    )
     conn.commit()
+    sleep(0.5) # Ensure the last update is visible in the UI before we close the connection
+except Exception as e:
+    cursor.close()
+    conn.close()
+    raise e
+
 # Close DB connection
 cursor.close()
 conn.close()

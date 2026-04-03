@@ -18,8 +18,6 @@ class AnalyzePcap implements ShouldQueue
 
     public int $timeout = 600;
     private $filePath;
-    private $errorCounter = 0;
-    private $errorLimit = 3;
 
     public function __construct(public string $uuid, public string $fileName)
     {
@@ -44,39 +42,41 @@ class AnalyzePcap implements ShouldQueue
                 $result->output(),
                 $result->errorOutput()
             );
-
-            RedisJob::where('redis_id', '=', $this->uuid)->update([
-                'status' => 'failed',
-                'error_message' => $errorMessage,
-                'expires_at' => now()->addMinutes(10),
-            ]);
-
+            $this->updateRecord(true, $errorMessage);
             Log::error("Python error for {$this->uuid}: {$errorMessage}");
             $this->removeFile();
             return;
-        }
+        } 
 
-        RedisJob::where('redis_id', '=', $this->uuid)->update([
-            'status' => 'finished',
-            'expires_at' => now()->addHours(2),
-        ]);
-       $this->removeFile();
+        $this->updateRecord(false, "");
+        $this->removeFile();
     }
 
     // On job fail change the status and remove the file
     public function failed(?Throwable $exception): void
     {
-        RedisJob::where('redis_id', '=', $this->uuid)->update([
-            'status' => 'failed',
-            'error_message' => $exception?->getMessage() ?? 'Analysis failed due to an system error. Error code: 1',
-            'expires_at' => now()->addMinutes(10),
-        ]);
+        $this->updateRecord(true, $exception?->getMessage() ?? 'Analysis failed due to an system error. Error code: 1');
         $this->removeFile();
     }
 
     private function removeFile(): void{
         if(file_exists($this->filePath)){
             unlink($this->filePath);
+        }
+    }
+
+    private function updateRecord(bool $hasFailed, $errorMessage): void{
+        if($hasFailed){
+            RedisJob::where('redis_id', '=', $this->uuid)->update([
+                'status' => 'failed',
+                'error_message' => $errorMessage,
+                'expires_at' => now()->addMinutes(10),
+            ]);
+        } else {
+            RedisJob::where('redis_id', '=', $this->uuid)->update([
+                'status' => 'finished',
+                'expires_at' => now()->addHours(2),
+            ]);
         }
     }
 
