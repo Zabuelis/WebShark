@@ -14,8 +14,8 @@ dhcp_message_type = {
 
 # There are many more (https://en.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol#Options), these are the ones encountered in samples 
 dhcp_request_list = {
-    "1": "Subnet Mask-",
-    "3": "Router-",
-    "6": "Domain Name Server-",
-    "42": "Network Time Protocol-"
+    "1": "Subnet Mask - ",
+    "3": "Router - ",
+    "6": "DNS - ",
+    "42": "NTP - "
 }

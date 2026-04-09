@@ -3,9 +3,9 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Models\RedisJob;
+use App\Models\AnalysisJob;
 
-class DeleteExpiredRedisJobs extends Command
+class DeleteExpiredAnalysisJobs extends Command
 {
     /**
      * The name and signature of the console command.
@@ -26,6 +26,6 @@ class DeleteExpiredRedisJobs extends Command
      */
     public function handle()
     {
-        RedisJob::where('expires_at', '<', now())->where('status', '!=', 'dispatched')->delete();
+        AnalysisJob::where('expires_at', '<', now())->where('status', '!=', 'dispatched')->delete();
     }
 }

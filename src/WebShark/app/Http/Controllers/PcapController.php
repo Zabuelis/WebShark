@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Models\RedisJob;
+use App\Models\AnalysisJob;
 use App\Models\Packet;
 use App\Jobs\AnalyzePcap;
 use App\Models\IpMarker;
@@ -58,13 +58,13 @@ class PcapController extends Controller
                 'message' => $e->getMessage(),
                 'exception' => $e,
             ]);
-            return redirect()->back()->with('error', $e->getMessage());
+            return redirect()->back()->with('error', "There was an error processing your request. Please try again...");
         }
     }
 
     public function show(String $id)
     {
-        $job = RedisJob::where('redis_id', $id)->firstOrFail();
+        $job = AnalysisJob::where('analysis_id', $id)->firstOrFail();
         $status = $job->status;
 
         // Default props
@@ -97,18 +97,18 @@ class PcapController extends Controller
         }
 
         // If we are here, everything went well
-        $props['packets'] = Packet::where('redis_id', $id)
+        $props['packets'] = Packet::where('analysis_id', $id)
                                     ->orderBy('packet_number', 'asc')
                                     ->paginate(20);
         
-        $props['total_bytes'] = (int) Packet::where('redis_id', $id)
+        $props['total_bytes'] = (int) Packet::where('analysis_id', $id)
                                             ->sum('captured_packet_length');
 
-        $firstPacket = Packet::where('redis_id', $id)
+        $firstPacket = Packet::where('analysis_id', $id)
                                ->orderBy('packet_number', 'asc')
                                ->first();
 
-        $lastPacket = Packet::where('redis_id', $id)->orderBy('packet_number', 'desc')->first();
+        $lastPacket = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->first();
 
         $props['first_packet_time'] = $firstPacket ? (float) $firstPacket->timestamp : 0;
 
@@ -118,7 +118,7 @@ class PcapController extends Controller
     }
 
     /**
-     * Dispatch redis job and log it into db under status 'dispatching'
+     * Dispatch analysis job and log it into db under status 'dispatching'
      */
     private function handleNewJob($rebuiltFileName)
     {
@@ -126,8 +126,8 @@ class PcapController extends Controller
 
         AnalyzePcap::dispatch($uuid, $rebuiltFileName);
 
-        RedisJob::insert([
-            'redis_id' => $uuid,
+        AnalysisJob::insert([
+            'analysis_id' => $uuid,
             'file_path' => $rebuiltFileName,
             'status' => 'dispatching',
         ]);

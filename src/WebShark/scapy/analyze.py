@@ -115,41 +115,41 @@ register("L4", "ICMP", handle_icmp)
 # Handle L7 protocols
 def handle_http1(packet):
     http_header = {
-        "protocol": "HTTP",
-        "version": None,
-        "content_length": packet.get("http.content_length"),
-        "payload": packet.get("http.file_data")
+        "Protocol": "HTTP",
+        "Version": None,
+        "Content_Length": packet.get("http.content_length"),
+        "Payload": packet.get("http.file_data")
     }
     if packet.get("http.request.version"):
-        http_header.update({"version": packet.get("http.request.version")})
-        http_header["request_method"] = packet.get("http.request.method")
-        http_header["request_uri"] = packet.get("http.request.uri")
-        http_header["full_uri"] = packet.get("http.request.full_uri")
-        http_header["user_agent"] = packet.get("http.user_agent")
-        http_header["user_credentials"] = packet.get("http.authorization")
+        http_header.update({"Version": packet.get("http.request.version")})
+        http_header["Request_Method"] = packet.get("http.request.method")
+        http_header["Request_URI"] = packet.get("http.request.uri")
+        http_header["Full_URI"] = packet.get("http.request.full_uri")
+        http_header["User_Agent"] = packet.get("http.user_agent")
+        http_header["User_Credentials"] = packet.get("http.authorization")
     elif packet.get("http.response.version"):
-        http_header.update({"version": packet.get("http.response.version")})
-        http_header["response_code"] = packet.get("http.response.code")
-        http_header["response_phrase"] = packet.get("http.response.phrase")
+        http_header.update({"Version": packet.get("http.response.version")})
+        http_header["Response_Code"] = packet.get("http.response.code")
+        http_header["Response_Phrase"] = packet.get("http.response.phrase")
     else:
         return {}
-    http_header["keep_alive"] = packet.get("http.connection")
+    http_header["Keep_Alive"] = packet.get("http.connection")
     return http_header
 
 def handle_dns(packet):
     dns_header = {
-        "protocol": "DNS",
-        "transaction_id": packet.get("dns.id"),
-        "flags": packet.get("dns.flags")
+        "Protocol": "DNS",
+        "Transaction_ID": packet.get("dns.id"),
+        "Flags": packet.get("dns.flags")
     }
     if packet.get("dns.flags.response") == "False":
-        dns_header["type"] = "query"
-        dns_header["query_name"] = packet.get("dns.qry.name")
-        dns_header["query_type"] = packet.get("dns.qry.type")
+        dns_header["Type"] = "Query"
+        dns_header["Query_Name"] = packet.get("dns.qry.name")
+        dns_header["Query_Type"] = packet.get("dns.qry.type")
     elif packet.get("dns.flags.response") == "True":
-        dns_header["type"] = "response"
-        dns_header["response_name"] = packet.get("dns.resp.name")
-        dns_header["response_type"] = packet.get("dns.resp.type")
+        dns_header["Type"] = "Response"
+        dns_header["Response_Name"] = packet.get("dns.resp.name")
+        dns_header["Response_Type"] = packet.get("dns.resp.type")
     else:
         return {}
     
@@ -157,43 +157,43 @@ def handle_dns(packet):
 
 def handle_dhcp(packet):
     dhcp_header = {
-        "protocol": "DHCP",
-        "transaction_id": packet.get("dhcp.id"),
-        "client_ip_address": packet.get("dhcp.ip.client"),
-        "relay_ip_address": packet.get("dhcp.ip.relay"),
-        "server_ip_address": packet.get("dhcp.ip.server"),
-        "your_ip_address": packet.get("dhcp.ip.relay"),
-        "dhcp_message_type": protocol_contexts.dhcp_message_type.get(packet.get("dhcp.option.dhcp")),
-        "subnet_mask": packet.get("dhcp.option.subnet_mask"),
-        "request_list": packet.get("dhcp.option.request_list_item")
+        "Protocol": "DHCP",
+        "Transaction_ID": packet.get("dhcp.id"),
+        "Client_IP_Address": packet.get("dhcp.ip.client"),
+        "Relay_IP_Address": packet.get("dhcp.ip.relay"),
+        "Server_IP_Address": packet.get("dhcp.ip.server"),
+        "Your_IP_Address": packet.get("dhcp.ip.your"),
+        "DHCP_Message_Type": protocol_contexts.dhcp_message_type.get(packet.get("dhcp.option.dhcp")),
+        "Subnet_Mask": packet.get("dhcp.option.subnet_mask"),
+        "Request_List": packet.get("dhcp.option.request_list_item")
     }
     # Convert request list from code to name
-    if dhcp_header["request_list"]:
-        requests = dhcp_header["request_list"].split(",")
+    if dhcp_header["Request_List"]:
+        requests = dhcp_header["Request_List"].split(",")
         list = ""
         for request in requests:
             request = request.strip()
             context = protocol_contexts.dhcp_request_list.get(request)
             if context:
                 list += context
-        dhcp_header["request_list"] = list
+        dhcp_header["Request_List"] = list
 
     return dhcp_header
 
 def handle_tls(packet):
     return {
-        "protocol": "TLS",
-        "version": protocol_contexts.tls_name_versions.get(packet.get("tls.record.version")),
-        "record_length": packet.get("tls.record.length"),
-        "encrypted_protocol": packet.get("tls.app_data_proto"),
-        "encrypted_content": packet.get("tls.app_data")
+        "Protocol": "TLS",
+        "Version": protocol_contexts.tls_name_versions.get(packet.get("tls.record.version")),
+        "Record_Length": packet.get("tls.record.length"),
+        "Encrypted_Protocol": packet.get("tls.app_data_proto"),
+        "Encrypted_Content": packet.get("tls.app_data")
     }
 
 def handle_ssh(packet):
     return {
-        "protocol": "SSH",
-        "ssh_version": packet.get("ssh.protocol"),
-        "ssh_direction": packet.get("ssh.direction")
+        "Protocol": "SSH",
+        "SSH_Version": packet.get("ssh.protocol"),
+        "SSH_Direction": packet.get("ssh.direction")
     }
 
 register("L7", "TLS", handle_tls)
@@ -345,7 +345,7 @@ def analyze_packet(pkt, index):
 
 # Entry point
 file_path = sys.argv[1]
-redis_id = sys.argv[2]
+analysis_id = sys.argv[2]
 # Get environmental DB connection variables
 dbName = os.getenv('DB_DATABASE')
 dbUser = os.getenv('DB_USERNAME')
@@ -368,7 +368,7 @@ try:
         row_limit = 1000
         query = """INSERT INTO packet 
             (
-                redis_id,
+                analysis_id,
                 packet_number,
                 l3_protocol,
                 src_ip, 
@@ -395,8 +395,8 @@ try:
             
                 try:
                     cursor.execute(
-                        "UPDATE redis_job SET progress_percentage = %s WHERE redis_id = %s", 
-                        (progress, redis_id)
+                        "UPDATE analysis_job SET progress_percentage = %s WHERE analysis_id = %s", 
+                        (progress, analysis_id)
                     )
                     conn.commit()
                 except Exception as e:
@@ -404,7 +404,7 @@ try:
             
             # Make a list of 1000 tuples and then commit to DB
             rows.append((
-                redis_id, 
+                analysis_id, 
                 result["id"],
                 result["layers"]["L3"].get("protocol"),
                 result["layers"]["L3"].get("src"), 
@@ -431,8 +431,8 @@ try:
         conn.commit()
 
     cursor.execute(
-        "UPDATE redis_job SET progress_percentage = 100 WHERE redis_id = %s", 
-        (redis_id,)
+        "UPDATE analysis_job SET progress_percentage = 100 WHERE analysis_id = %s", 
+        (analysis_id,)
     )
     conn.commit()
     sleep(0.5) # Ensure the last update is visible in the UI before we close the connection

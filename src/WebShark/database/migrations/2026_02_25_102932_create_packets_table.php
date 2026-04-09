@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('packet', function (Blueprint $table) {
             $table->id('packet_id');
-            $table->uuid('redis_id');
+            $table->uuid('analysis_id');
             $table->integer('packet_number');
             $table->string('l3_protocol')->nullable(true);
             $table->string('l4_protocol')->nullable(true);
@@ -29,7 +29,7 @@ return new class extends Migration
             $table->decimal('timestamp', 20, 6)->nullable();
             $table->text('raw_hex')->nullable();
             
-            $table->foreign('redis_id')->references('redis_id')->on('redis_job')->onDelete('cascade');
+            $table->foreign('analysis_id')->references('analysis_id')->on('analysis_job')->onDelete('cascade');
         });
     }
 

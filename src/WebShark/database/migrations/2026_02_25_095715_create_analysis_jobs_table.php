@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('redis_job', function (Blueprint $table) {
-            $table->uuid('redis_id')->unique();
+        Schema::create('analysis_job', function (Blueprint $table) {
+            $table->uuid('analysis_id')->unique();
             $table->string('file_path');
             $table->dateTime('expires_at', precision: 0)->nullable(true);
             $table->string('status');
@@ -26,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('redis_job');
+        Schema::dropIfExists('analysis_job');
     }
 };

@@ -52,7 +52,7 @@ const detailSections = computed(() => {
   
   const p = selectedPacket.value
 
-  const packetDetails = [
+  return [
     {
       title: "Frame",
       fields: [
@@ -62,7 +62,7 @@ const detailSections = computed(() => {
       ]
     },
     {
-      title: "Network",
+      title: "Network Layer",
       fields: [
         { label: "L3 Protocol", value: p.l3_protocol },
         { label: "Source IP", value: p.src_ip },
@@ -70,7 +70,7 @@ const detailSections = computed(() => {
       ]
     },
     {
-      title: "Transport",
+      title: "Transport Layer",
       fields: [
         { label: "L4 Protocol", value: p.l4_protocol },
         { label: "Source Port", value: p.src_port },
@@ -79,23 +79,15 @@ const detailSections = computed(() => {
     },
     Object.keys(p.l7_attributes).length !== 0 ? 
     {
-        title: "Application",
-        // Split the object into 2 arrays
+        title: "Application Layer",
+        // Split the object into 2 arrays and map them
         fields: Object.entries(p.l7_attributes).map(([attribute_name, attribute_value]) => ({
             label: attribute_name,
             value: attribute_value
         }))
     }
-    :
-    {
-        title: "Application",
-        fields: [
-            {label: "Not Supported", value: "This protocol is not yet supported. Keep track of updates and try again later."},
-        ]
-    }
+    : {}
   ]
-  
-  return packetDetails
 })
 
 // For protocol badge colors
@@ -106,25 +98,48 @@ const getProtoColor = (packet) => {
         'ICMP': 'bg-pink-100 text-pink-700 border-pink-200',
         'TLS': 'bg-yellow-100 text-yellow-700 border-yellow-200',
         'HTTP': 'bg-indigo-100 text-indigo-700 border-indigo-200',
-        'DNS': 'bg-pink-100 text-pink-700 border-pink-200'
+        'DNS': 'bg-pink-100 text-pink-700 border-pink-200',
+        'DHCP': 'bg-teal-100 text-teal-700 border-teal-100'
     }
-    if(packet.l7_attributes.protocol){
-        return colors[packet.l7_attributes.protocol] || 'bg-slate-100 text-slate-700 border-slate-200'
+    if(packet.l7_attributes.Protocol){
+        return colors[packet.l7_attributes.Protocol] || 'bg-slate-100 text-slate-700 border-slate-200'
     } else if (packet.l4_protocol){
         return colors[packet.l4_protocol] || 'bg-slate-100 text-slate-700 border-slate-200'
     }
 
-    return colors[proto] || 'bg-slate-100 text-slate-700 border-slate-200'
+    return 'bg-slate-100 text-slate-700 border-slate-200'
 }
 
-const highestLevelProtocol = (packet) =>{
-    if(packet.l7_attributes.protocol){
-        return packet.l7_attributes.protocol
+// Return the highest protocol to display
+const highestLevelProtocol = (packet) => {
+    if(packet.l7_attributes.Protocol){
+        return packet.l7_attributes.Protocol
     } else if(packet.l4_protocol){
         return packet.l4_protocol
     } else if(packet.l3_protocol){
         return packet.l3_protocol
     }
+    return ""
+}
+
+// Protocol specific for quick preview in the INFO column
+const protocolSpecificInformation = (packet) => {
+    if (packet.l7_attributes.Protocol === "TLS"){
+        return packet.l7_attributes.Version + " - " + packet.l7_attributes.Encrypted_Protocol
+    } else if(packet.l7_attributes.Protocol === "DHCP"){
+        return packet.l7_attributes.DHCP_Message_Type + " - " + packet.l7_attributes.Transaction_ID
+    } else if (packet.l7_attributes.Protocol === "DNS"){
+        return "Transaction ID: " + packet.l7_attributes.Transaction_ID + " - " + packet.l7_attributes.Type + " - Flags: " + packet.l7_attributes.Flags
+    } else if(packet.l7_attributes.Protocol === "HTTP"){
+        if(packet.l7_attributes.Request_Method === "GET"){
+            return packet.l7_attributes.Request_Method + " " + packet.l7_attributes.Full_URI + " " + packet.l7_attributes.Version
+        } else if(packet.l7_attributes.Protocol){
+            return packet.l7_attributes.Version + " " + packet.l7_attributes.Response_Phrase + " " + packet.l7_attributes.Response_Code 
+        }
+    } else if (packet.l4_protocol === "TCP" || packet.l4_protocol === "UDP"){
+        return packet.src_port + " -> " + packet.dst_port
+    }
+
     return ""
 }
 
@@ -150,7 +165,6 @@ const filteredPackets = computed(() => {
         p.src_ip.toLowerCase().includes(search) || 
         p.dst_ip.toLowerCase().includes(search) ||
         p.l4_protocol.toLowerCase().includes(search)
-
     )
 })
 
@@ -301,7 +315,7 @@ onMounted(() => {
                             </span>
                         </div>
                         <div class="text-slate-500 text-xs">{{ packet.captured_packet_length }}</div>
-                        <div class="text-slate-600 truncate text-xs italic">Packet data...</div>
+                        <div class="text-slate-600 truncate text-xs italic">{{ protocolSpecificInformation(packet) }}</div>
                         </div>
 
 
