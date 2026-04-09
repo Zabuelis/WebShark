@@ -51,8 +51,8 @@ const detailSections = computed(() => {
   if (!selectedPacket.value) return []
   
   const p = selectedPacket.value
-  
-  return [
+
+  const packetDetails = [
     {
       title: "Frame",
       fields: [
@@ -77,24 +77,55 @@ const detailSections = computed(() => {
         { label: "Dest Port", value: p.dst_port },
       ]
     },
+    Object.keys(p.l7_attributes).length !== 0 ? 
     {
-      title: "Application",
-      fields: [
-        { label: "L7 Protocol", value: p.l7_protocol },
-        { label: "Info", value: p.info },
-      ]
+        title: "Application",
+        // Split the object into 2 arrays
+        fields: Object.entries(p.l7_attributes).map(([attribute_name, attribute_value]) => ({
+            label: attribute_name,
+            value: attribute_value
+        }))
+    }
+    :
+    {
+        title: "Application",
+        fields: [
+            {label: "Not Supported", value: "This protocol is not yet supported. Keep track of updates and try again later."},
+        ]
     }
   ]
+  
+  return packetDetails
 })
 
 // For protocol badge colors
-const getProtoColor = (proto) => {
+const getProtoColor = (packet) => {
     const colors = {
         'TCP': 'bg-blue-100 text-blue-700 border-blue-200',
         'UDP': 'bg-purple-100 text-purple-700 border-purple-200',
-        'ICMP': 'bg-pink-100 text-pink-700 border-pink-200'
+        'ICMP': 'bg-pink-100 text-pink-700 border-pink-200',
+        'TLS': 'bg-yellow-100 text-yellow-700 border-yellow-200',
+        'HTTP': 'bg-indigo-100 text-indigo-700 border-indigo-200',
+        'DNS': 'bg-pink-100 text-pink-700 border-pink-200'
     }
+    if(packet.l7_attributes.protocol){
+        return colors[packet.l7_attributes.protocol] || 'bg-slate-100 text-slate-700 border-slate-200'
+    } else if (packet.l4_protocol){
+        return colors[packet.l4_protocol] || 'bg-slate-100 text-slate-700 border-slate-200'
+    }
+
     return colors[proto] || 'bg-slate-100 text-slate-700 border-slate-200'
+}
+
+const highestLevelProtocol = (packet) =>{
+    if(packet.l7_attributes.protocol){
+        return packet.l7_attributes.protocol
+    } else if(packet.l4_protocol){
+        return packet.l4_protocol
+    } else if(packet.l3_protocol){
+        return packet.l3_protocol
+    }
+    return ""
 }
 
 // Function to handle the click
@@ -265,8 +296,8 @@ onMounted(() => {
                         <div class="text-slate-800 font-medium">{{ packet.src_ip }}</div>
                         <div class="text-slate-800">{{ packet.dst_ip }}</div>
                         <div>
-                            <span :class="getProtoColor(packet.l4_protocol)" class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
-                                {{ packet.l4_protocol  }}
+                            <span :class="getProtoColor(packet)" class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
+                                {{highestLevelProtocol(packet)}}
                             </span>
                         </div>
                         <div class="text-slate-500 text-xs">{{ packet.captured_packet_length }}</div>
@@ -326,8 +357,8 @@ onMounted(() => {
                         <!-- Header with ID and Protocol Badge -->
                         <div class="flex items-center justify-between mb-6">
                             <h3 class="text-sm font-bold text-slate-900 uppercase tracking-tight">Packet #{{ selectedPacket.packet_number }}</h3>
-                            <span :class="getProtoColor(selectedPacket.l4_protocol)" class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
-                                {{ selectedPacket.l4_protocol }}
+                            <span :class="getProtoColor(selectedPacket)" class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
+                                {{ highestLevelProtocol(selectedPacket) }}
                             </span>
                         </div>
 
