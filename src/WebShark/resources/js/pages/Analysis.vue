@@ -75,16 +75,17 @@ const detailSections = computed(() => {
         { label: "L4 Protocol", value: p.l4_protocol },
         { label: "Source Port", value: p.src_port },
         { label: "Dest Port", value: p.dst_port },
+        p.l4_protocol === "TCP" ? { label: "TCP Flags", value: p.tcp_flag} : {},
+        p.l4_protocol === "TCP" ? { label: "TCP Window", value: p.tcp_window } : {}
       ]
     },
     Object.keys(p.l7_attributes).length !== 0 ? 
     {
         title: "Application Layer",
         // Split the object into 2 arrays and map them
-        fields: Object.entries(p.l7_attributes).map(([attribute_name, attribute_value]) => ({
-            label: attribute_name,
-            value: attribute_value
-        }))
+        fields: Object.entries(p.l7_attributes).map(([attribute_name, attribute_value]) => (
+            attribute_value !== "" ? { label: attribute_name, value: attribute_value } : {}
+        ))
     }
     : {}
   ]
@@ -136,7 +137,9 @@ const protocolSpecificInformation = (packet) => {
         } else if(packet.l7_attributes.Protocol){
             return packet.l7_attributes.Version + " " + packet.l7_attributes.Response_Phrase + " " + packet.l7_attributes.Response_Code 
         }
-    } else if (packet.l4_protocol === "TCP" || packet.l4_protocol === "UDP"){
+    } else if (packet.l4_protocol === "TCP"){
+        return packet.src_port + " -> " + packet.dst_port + " Flags=" + packet.tcp_flag + " Win=" + packet.tcp_window
+    } else if (packet.l4_protocol === "UDP"){
         return packet.src_port + " -> " + packet.dst_port
     }
 
