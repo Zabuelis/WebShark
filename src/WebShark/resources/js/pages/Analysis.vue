@@ -75,20 +75,22 @@ const detailSections = computed(() => {
         { label: "L4 Protocol", value: p.l4_protocol },
         { label: "Source Port", value: p.src_port },
         { label: "Dest Port", value: p.dst_port },
-        p.l4_protocol === "TCP" ? { label: "TCP Flags", value: p.tcp_flag} : {},
-        p.l4_protocol === "TCP" ? { label: "TCP Window", value: p.tcp_window } : {}
-      ]
+
+        p.l4_protocol === "TCP" ? { label: "TCP Flags", value: p.tcp_flag} : null,
+        p.l4_protocol === "TCP" ? { label: "TCP Window", value: p.tcp_window } : null
+      ].filter(Boolean)
     },
     Object.keys(p.l7_attributes).length !== 0 ? 
     {
         title: "Application Layer",
         // Split the object into 2 arrays and map them
-        fields: Object.entries(p.l7_attributes).map(([attribute_name, attribute_value]) => (
-            attribute_value !== "" ? { label: attribute_name, value: attribute_value } : {}
-        ))
+        fields:
+            Object.entries(p.l7_attributes).map(([attribute_name, attribute_value]) => (
+                attribute_value !== "" ? { label: attribute_name, value: attribute_value } : null
+            )).filter(Boolean)
     }
-    : {}
-  ]
+    : null
+  ].filter(Boolean)
 })
 
 // For protocol badge colors
@@ -167,7 +169,10 @@ const filteredPackets = computed(() => {
     return packetArray.filter(p => 
         p.src_ip.toLowerCase().includes(search) || 
         p.dst_ip.toLowerCase().includes(search) ||
-        p.l4_protocol.toLowerCase().includes(search)
+        p.l4_protocol?.toLowerCase().includes(search) ||
+        p.src_port.toString().includes(search) ||
+        p.dst_port.toString().includes(search) ||
+        p.l7_attributes.Protocol?.toLowerCase().includes(search)
     )
 })
 
@@ -397,7 +402,7 @@ onMounted(() => {
 
                         <!-- Raw Hex -->
                         <div class="mt-8">
-                            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Raw Hex</div>
+                            <div class="text-[10px] font-bold text-slate-400 border-b border-slate-100 uppercase tracking-widest mb-3">Raw Hex</div>
                             <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 font-mono text-[11px] text-slate-600 leading-relaxed shadow-sm">
                                 {{ selectedPacket.raw_hex }}
                             </div>
