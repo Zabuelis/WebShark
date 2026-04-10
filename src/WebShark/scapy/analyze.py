@@ -378,11 +378,13 @@ try:
                 dst_port,
                 tcp_flag,
                 tcp_window,
+                tcp_ack_number,
+                tcp_seq_number,
                 l4_protocol,
                 l7_attributes,
                 timestamp,
                 raw_hex
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
         rows = []
         tshark_stream = execute_tshark(file_path)
         for index, (pkt, tshark_pkt) in enumerate(zip(reader, tshark_stream), start=1):
@@ -416,6 +418,8 @@ try:
                 result["layers"]["L4"].get("dst_port"),
                 result["layers"]["L4"].get("flags"),
                 result["layers"]["L4"].get("window"),
+                result["layers"]["L4"].get("ack"),
+                result["layers"]["L4"].get("seq"),
                 result["layers"]["L4"].get("protocol"),
                 json.dumps(tshark_pkt["layers"]["L7"]),
                 result["timestamp"],

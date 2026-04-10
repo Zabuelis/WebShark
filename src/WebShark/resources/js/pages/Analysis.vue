@@ -76,14 +76,17 @@ const detailSections = computed(() => {
         { label: "Source Port", value: p.src_port },
         { label: "Dest Port", value: p.dst_port },
 
+        // TCP specific fields
         p.l4_protocol === "TCP" ? { label: "TCP Flags", value: p.tcp_flag} : null,
-        p.l4_protocol === "TCP" ? { label: "TCP Window", value: p.tcp_window } : null
+        p.l4_protocol === "TCP" ? { label: "TCP Window", value: p.tcp_window } : null,
+        p.l4_protocol === "TCP" ? { label: "TCP SEQ Number", value: p.tcp_seq_number } : null,
+        p.l4_protocol === "TCP" ? { label: "TCP ACK Number", value: p.tcp_ack_number } : null
       ].filter(Boolean)
     },
     Object.keys(p.l7_attributes).length !== 0 ? 
     {
         title: "Application Layer",
-        // Split the object into 2 arrays and map them
+        // Split the object into arrays of key:value pairs and map over them
         fields:
             Object.entries(p.l7_attributes).map(([attribute_name, attribute_value]) => (
                 attribute_value !== "" ? { label: attribute_name, value: attribute_value } : null
