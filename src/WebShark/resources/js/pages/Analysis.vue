@@ -77,11 +77,14 @@ const detailSections = computed(() => {
         { label: "Dest Port", value: p.dst_port },
 
         // TCP specific fields
-        p.l4_protocol === "TCP" ? { label: "TCP Flags", value: p.tcp_flag} : null,
-        p.l4_protocol === "TCP" ? { label: "TCP Window", value: p.tcp_window } : null,
-        p.l4_protocol === "TCP" ? { label: "TCP SEQ Number", value: p.tcp_seq_number } : null,
-        p.l4_protocol === "TCP" ? { label: "TCP ACK Number", value: p.tcp_ack_number } : null
-      ].filter(Boolean)
+        ...p.l4_protocol === "TCP" ? [
+            { label: "TCP Flags", value: p.tcp_flag },
+            { label: "TCP Window", value: p.tcp_window },
+            { label: "TCP SEQ Number", value: p.tcp_seq_number },
+            { label: "TCP ACK Number", value: p.tcp_ack_number },
+
+        ] : []
+      ]
     },
     Object.keys(p.l7_attributes).length !== 0 ? 
     {
@@ -105,7 +108,8 @@ const getProtoColor = (packet) => {
         'TLS': 'bg-yellow-100 text-yellow-700 border-yellow-200',
         'HTTP': 'bg-indigo-100 text-indigo-700 border-indigo-200',
         'DNS': 'bg-pink-100 text-pink-700 border-pink-200',
-        'DHCP': 'bg-teal-100 text-teal-700 border-teal-100'
+        'DHCP': 'bg-teal-100 text-teal-700 border-teal-200',
+        "SSH": 'bg-sky-100 text-sky-700 border-sky-200'
     }
     if(packet.l7_attributes.Protocol){
         return colors[packet.l7_attributes.Protocol] || 'bg-slate-100 text-slate-700 border-slate-200'
@@ -130,22 +134,27 @@ const highestLevelProtocol = (packet) => {
 
 // Protocol specific for quick preview in the INFO column
 const protocolSpecificInformation = (packet) => {
-    if (packet.l7_attributes.Protocol === "TLS"){
-        return packet.l7_attributes.Version + " - " + packet.l7_attributes.Encrypted_Protocol
-    } else if(packet.l7_attributes.Protocol === "DHCP"){
-        return packet.l7_attributes.DHCP_Message_Type + " - " + packet.l7_attributes.Transaction_ID
-    } else if (packet.l7_attributes.Protocol === "DNS"){
-        return "Transaction ID: " + packet.l7_attributes.Transaction_ID + " - " + packet.l7_attributes.Type + " - Flags: " + packet.l7_attributes.Flags
-    } else if(packet.l7_attributes.Protocol === "HTTP"){
-        if(packet.l7_attributes.Request_Method === "GET"){
-            return packet.l7_attributes.Request_Method + " " + packet.l7_attributes.Full_URI + " " + packet.l7_attributes.Version
-        } else if(packet.l7_attributes.Protocol){
-            return packet.l7_attributes.Version + " " + packet.l7_attributes.Response_Phrase + " " + packet.l7_attributes.Response_Code 
-        }
-    } else if (packet.l4_protocol === "TCP"){
-        return packet.src_port + " -> " + packet.dst_port + " Flags=" + packet.tcp_flag + " Win=" + packet.tcp_window
-    } else if (packet.l4_protocol === "UDP"){
-        return packet.src_port + " -> " + packet.dst_port
+    switch(packet.l7_attributes.Protocol){
+        case "TLS":
+            return packet.l7_attributes.Version + " - " + packet.l7_attributes.Encrypted_Protocol
+        case "DHCP":
+           return packet.l7_attributes.DHCP_Message_Type + " - " + packet.l7_attributes.Transaction_ID
+        case "DNS":
+            return "Transaction ID: " + packet.l7_attributes.Transaction_ID + " - " + packet.l7_attributes.Type + " - Flags: " + packet.l7_attributes.Flags
+        case "HTTP":
+            if(packet.l7_attributes.Request_Method === "GET"){
+               return packet.l7_attributes.Request_Method + " " + packet.l7_attributes.Full_URI + " " + packet.l7_attributes.Version
+            } else if(packet.l7_attributes.Protocol){
+                return packet.l7_attributes.Version + " " + packet.l7_attributes.Response_Phrase + " " + packet.l7_attributes.Response_Code 
+            }
+        case "SSH":
+            return packet.l7_attributes.SSH_Direction
+    }
+    switch(packet.l4_protocol){
+        case "TCP":
+           return packet.src_port + " -> " + packet.dst_port + " Flags=" + packet.tcp_flag + " Win=" + packet.tcp_window
+        case "UDP":
+           return packet.src_port + " -> " + packet.dst_port
     }
 
     return ""

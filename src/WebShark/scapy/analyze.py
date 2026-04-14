@@ -24,7 +24,7 @@ tshark_protocols = {
     # TLS fields
     "tls_fields": [ "tls.app_data_proto", "tls.app_data", "tls.record.version", "tls.record.length" ],
     # SSH fields
-    "ssh_fields" : [ "ssh.protocol", "ssh.direction" ]
+    "ssh_fields" : [ "ssh.protocol", "ssh.direction", "ssh.encrypted_packet", "ssh.packet_length", "ssh.packet_length_encrypted", "ssh.message_code" ]
 }
 
 # Used to separate fields inside the return of tshark command
@@ -169,14 +169,7 @@ def handle_dhcp(packet):
     }
     # Convert request list from code to name
     if dhcp_header["Request_List"]:
-        requests = dhcp_header["Request_List"].split(",")
-        list = ""
-        for request in requests:
-            request = request.strip()
-            context = protocol_contexts.dhcp_request_list.get(request)
-            if context:
-                list += context
-        dhcp_header["Request_List"] = list
+        dhcp_header["Request_List"] = helpers.translate_message(",", protocol_contexts.dhcp_request_list, dhcp_header["Request_List"])
 
     return dhcp_header
 
@@ -190,11 +183,19 @@ def handle_tls(packet):
     }
 
 def handle_ssh(packet):
-    return {
+    ssh_header = {
         "Protocol": "SSH",
         "SSH_Version": packet.get("ssh.protocol"),
-        "SSH_Direction": packet.get("ssh.direction")
+        "SSH_Direction": protocol_contexts.ssh_direction.get(packet.get("ssh.direction")),
+        "SSH_Encrypted_Packet": packet.get("ssh.encrypted_packet"),
+        "SSH_Packet_Length": packet.get("ssh.packet_length"),
+        "SSH_Packet_Length (Encrypted)": packet.get("ssh.packet_length_encrypted"),
+        "SSH_Message_Code": packet.get("ssh.message_code"),
     }
+    if ssh_header["SSH_Message_Code"]:
+        ssh_header.update({"Translated_Message": helpers.translate_message(",", protocol_contexts.ssh_message_codes, ssh_header["SSH_Message_Code"])})
+
+    return ssh_header
 
 register("L7", "TLS", handle_tls)
 register("L7", "HTTP1", handle_http1)
@@ -211,7 +212,7 @@ def identify_l7(packet):
         return "DHCP"
     elif packet.get("tls.record.version"):
         return "TLS"
-    elif packet.get("ssh.protocol"):
+    elif packet.get("ssh.direction"):
         return "SSH"
     return None
     

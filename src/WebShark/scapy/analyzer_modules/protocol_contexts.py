@@ -19,3 +19,19 @@ dhcp_request_list = {
     "6": "DNS - ",
     "42": "NTP - "
 }
+
+# tshark retruns True for client side, false for server side
+ssh_direction = {
+    "True": "client-to-server",
+    "False": "server-to-client"
+}
+
+# General message codes https://datatracker.ietf.org/doc/html/rfc4253#section-12. For KEX packets tshark/wireshark has custom messages, only encountered in samples are defined here.
+ssh_message_codes = {
+    "1": "Disconnect (1)",
+    "20": "Key exchange init (20)",
+    "21": "New keys (21)",
+    "31": "Elliptic Curve Diffie-Hellman Key Exchange Reply (31)",
+    "30": "Elliptic Curve Diffie-Hellman Key Exchange Reply (31)"
+
+}
