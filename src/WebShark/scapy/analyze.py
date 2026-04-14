@@ -14,17 +14,18 @@ from analyzer_modules import *
 # in our case dict that maps: layer -> protocol name -> function.
 
 # Define upper protocol fields for retreival. All of them can be found here https://www.wireshark.org/docs/dfref/
+# Keys are used as filters for tshark, they must exactly match with the documentation
 tshark_protocols = {
     # HTTP 1/1.1 fields
-    "http1_fields": [ "http.request.version", "http.authorization", "http.response.version", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection", "http.response.phrase", "http.file_data", "http.content_length"],
+    "http": [ "http.request.version", "http.authorization", "http.response.version", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection", "http.response.phrase", "http.file_data", "http.content_length"],
     # DNS fields
-    "dns_fields": [ "dns.id", "dns.flags", "dns.flags.response", "dns.qry.name", "dns.qry.type", "dns.resp.name", "dns.resp.type" ],
+    "dns": [ "dns.id", "dns.flags", "dns.flags.response", "dns.qry.name", "dns.qry.type", "dns.resp.name", "dns.resp.type" ],
     # DHCPv4 fields
-    "dhcp_fields": [ "dhcp.id", "dhcp.ip.client", "dhcp.ip.relay", "dhcp.ip.server", "dhcp.ip.your",  "dhcp.option.dhcp", "dhcp.option.subnet_mask", "dhcp.option.request_list_item"],
+    "dhcp": [ "dhcp.id", "dhcp.ip.client", "dhcp.ip.relay", "dhcp.ip.server", "dhcp.ip.your",  "dhcp.option.dhcp", "dhcp.option.subnet_mask", "dhcp.option.request_list_item"],
     # TLS fields
-    "tls_fields": [ "tls.app_data_proto", "tls.app_data", "tls.record.version", "tls.record.length" ],
+    "tls": [ "tls.app_data_proto", "tls.app_data", "tls.record.version", "tls.record.length" ],
     # SSH fields
-    "ssh_fields" : [ "ssh.protocol", "ssh.direction", "ssh.encrypted_packet", "ssh.packet_length", "ssh.packet_length_encrypted", "ssh.message_code" ]
+    "ssh" : [ "ssh.protocol", "ssh.direction", "ssh.encrypted_packet", "ssh.packet_length", "ssh.packet_length_encrypted", "ssh.message_code" ]
 }
 
 # Used to separate fields inside the return of tshark command
@@ -218,6 +219,7 @@ def identify_l7(packet):
     
 def analyze_tshark(packet):
     result = {
+        "id": packet.get("frame.number"),
         "layers":{
             "L7": {},
         }
@@ -235,17 +237,24 @@ def analyze_tshark(packet):
 def execute_tshark(file_path):
     # Construct argument string of required fields
     analysis_fields = []
+    filter_fields = ""
     if tshark_protocols:
         for protocol in tshark_protocols:
-            protocol_fields = tshark_protocols.get(protocol)
-            if protocol_fields:
-                    for field in protocol_fields:
-                        analysis_fields.extend(["-e", field])
+            if protocol:
+                filter_fields += " | " + protocol
+                protocol_fields = tshark_protocols.get(protocol)
+                if protocol_fields:
+                        for field in protocol_fields:
+                            analysis_fields.extend(["-e", field])
+
+    filter_fields = filter_fields.strip(" | ")
+    filter_fields = filter_fields.replace("|", "or")
 
     # If tshark becomes a bottleneck it could be optimized to only parse through the needed protocols
     # In that case synchronization would break. Potential solution would be to insert upper layer data after scapy processing
     try:
         tshark_process = subprocess.Popen(["tshark", "-r", file_path,
+            "-Y", filter_fields,
             "-T", "fields",
             "-e", "frame.number",
             *analysis_fields,
@@ -382,13 +391,12 @@ try:
                 tcp_ack_number,
                 tcp_seq_number,
                 l4_protocol,
-                l7_attributes,
                 timestamp,
                 raw_hex
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
         rows = []
         tshark_stream = execute_tshark(file_path)
-        for index, (pkt, tshark_pkt) in enumerate(zip(reader, tshark_stream), start=1):
+        for index, pkt in enumerate(reader, start=1):
             result = analyze_packet(pkt, index)
 
             if index % 500 == 0:
@@ -422,7 +430,6 @@ try:
                 result["layers"]["L4"].get("ack"),
                 result["layers"]["L4"].get("seq"),
                 result["layers"]["L4"].get("protocol"),
-                json.dumps(tshark_pkt["layers"]["L7"]),
                 result["timestamp"],
                 result["hex_dump"]
             ))
@@ -444,6 +451,27 @@ try:
         (analysis_id,)
     )
     conn.commit()
+
+    query = """
+        UPDATE packet set l7_attributes = %s WHERE analysis_id = %s AND packet_id = %s
+    """
+    rows = []
+    for pkt in tshark_stream:
+        rows.append((
+            json.dumps(pkt["layers"]["L7"]),
+            analysis_id,
+            pkt["id"]
+        ))
+        if len(rows) >= row_limit:
+            psycopg2.extras.execute_batch(cursor, query, rows)
+            conn.commit()
+            rows.clear()
+
+    if len(rows) > 0:
+        psycopg2.extras.execute_batch(cursor, query, rows)
+        conn.commit()
+    
+
     sleep(0.5) # Ensure the last update is visible in the UI before we close the connection
 except Exception as e:
     cursor.close()
