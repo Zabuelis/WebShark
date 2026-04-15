@@ -32,6 +32,7 @@ return new class extends Migration
             $table->text('raw_hex')->nullable();
             
             $table->foreign('analysis_id')->references('analysis_id')->on('analysis_job')->onDelete('cascade');
+            $table->index(['analysis_id', 'packet_number']);
         });
     }
 

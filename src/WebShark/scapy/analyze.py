@@ -1,6 +1,5 @@
 import sys
 import os
-from time import sleep
 import psycopg2
 import psycopg2.extras
 import json
@@ -234,7 +233,7 @@ def analyze_tshark(packet):
 
 # Create a subprocess (same as fork) that runs tshark
 # Subprocess uses a pipe to receive data from tshark (only a limited amount of data is stored in the memory).
-def execute_tshark(file_path):
+def create_tshark(file_path):
     # Construct argument string of required fields
     analysis_fields = []
     filter_fields = ""
@@ -250,27 +249,26 @@ def execute_tshark(file_path):
     filter_fields = filter_fields.strip(" | ")
     filter_fields = filter_fields.replace("|", "or")
 
-    # If tshark becomes a bottleneck it could be optimized to only parse through the needed protocols
-    # In that case synchronization would break. Potential solution would be to insert upper layer data after scapy processing
     try:
         tshark_process = subprocess.Popen(["tshark", "-r", file_path,
-            "-Y", filter_fields,
-            "-T", "fields",
-            "-e", "frame.number",
-            *analysis_fields,
-            "-E", f"separator={field_separator}",
+            "-Y", filter_fields,    # Only return defined protocols
+            "-T", "fields", # Field format
+            "-e", "frame.number",   # Return specified fields only
+            *analysis_fields,  
+            "-E", f"separator={field_separator}",   # Separate fields with a specified separator
             "-E", "header=y"    # Return headers
             # Use the same pipe for stoud and stderr, avoids blocking read in a simplified manner
         ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     except:
         raise Exception("Tshark failed to start")
+    
+    return tshark_process
 
-    # First line returns a header with extracted field names, if it contains "tshark:" it means tshark has encountered an error
+def create_tshark_stream(tshark_process):
     header = tshark_process.stdout.readline()
+    # First line returns a header with extracted field names, if it contains "tshark:" it means tshark has encountered an error    
     if "tshark:" in header:
         error_message = tshark_process.stdout.readline()
-        tshark_process.kill()
-        tshark_process.wait()
         raise Exception("Tshark has encountered some errors: " + header + error_message)
     else:
         header = header.replace("\n", "").split(field_separator)
@@ -282,10 +280,6 @@ def execute_tshark(file_path):
         packet = dict(zip(header, packet))
 
         yield analyze_tshark(packet)
-
-    # Wait for the process to finish
-    tshark_process.wait()
-
 
 # Hex dump fallback for unknown protocols
 def get_hex_dump(pkt):
@@ -356,6 +350,7 @@ def analyze_packet(pkt, index):
 # Entry point
 file_path = sys.argv[1]
 analysis_id = sys.argv[2]
+
 # Get environmental DB connection variables
 dbName = os.getenv('DB_DATABASE')
 dbUser = os.getenv('DB_USERNAME')
@@ -365,6 +360,7 @@ dbHost = os.getenv('DB_HOST')
 if not validate_pcap(file_path):
     print(json.dumps({"error": "Analysis failed due to an invalid PCAP file"}))
     sys.exit(1)
+
 try:
     # Establish connection to the DB
     conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={dbPass}')
@@ -372,7 +368,9 @@ try:
 except:
     print(json.dumps({"error": "Failed to establish DB connection"}))
     sys.exit(1)
+
 total_size = os.path.getsize(file_path)
+rows = []
 
 # Critical operation (if this fails, analysis can't be displayed)
 try:
@@ -396,7 +394,6 @@ try:
                 timestamp,
                 raw_hex
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
-        rows = []
 
         for index, pkt in enumerate(reader, start=1):
             result = analyze_packet(pkt, index)
@@ -408,14 +405,11 @@ try:
                 if total_size > 0:
                     progress = min(int((current_pos / total_size) * 100), 100)
             
-                try:
-                    cursor.execute(
-                        "UPDATE analysis_job SET progress_percentage = %s WHERE analysis_id = %s", 
-                        (progress, analysis_id)
-                    )
-                    conn.commit()
-                except Exception as e:
-                    print(json.dumps({"error": "Failed to update progress: " + str(e)}))
+                cursor.execute(
+                    "UPDATE analysis_job SET progress_percentage = %s WHERE analysis_id = %s", 
+                    (progress, analysis_id)
+                )
+                conn.commit()
             
             # Make a list of 1000 tuples and then commit to DB
             rows.append((
@@ -436,9 +430,6 @@ try:
                 result["hex_dump"]
             ))
             
-            # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required
-            # Executing all rows tends to reduce 1-2 seconds (for 2mb file), but increases memory consumption
-            # Comparing execute_batch with executemany (~2mb file) revealed no difference despite documentation telling different
             if len(rows) >= row_limit:
                 psycopg2.extras.execute_batch(cursor, query, rows)
                 conn.commit()
@@ -452,14 +443,11 @@ try:
         "UPDATE analysis_job SET progress_percentage = 100 WHERE analysis_id = %s", 
         (analysis_id,)
     )
-    conn.commit()
-    
     cursor.execute(
         "UPDATE analysis_job SET status = %s WHERE analysis_id = %s", 
         ("finished", analysis_id)
     )
     conn.commit()
-    sleep(3)
 
 except Exception as e:
     cursor.close()
@@ -468,11 +456,13 @@ except Exception as e:
 
 # Optional operation (if this fails L3-L4 information will be displayed in the analysis)
 try:
-    tshark_stream = execute_tshark(file_path)
+    tshark_process = create_tshark(file_path)
+    tshark_stream = create_tshark_stream(tshark_process)
+
     query = """
         UPDATE packet set l7_attributes = %s WHERE analysis_id = %s AND packet_number = %s
     """
-    rows = []
+    rows.clear()
     for pkt in tshark_stream:
         rows.append((
             json.dumps(pkt["layers"]["L7"]),
@@ -489,10 +479,15 @@ try:
         conn.commit()
 
 except Exception as e:
-    cursor.close()
-    conn.close()
-    raise e
+        tshark_process.kill()
+        tshark_process.wait()
+        cursor.close()
+        conn.close()
+        raise e
 
+
+
+tshark_process.wait()
 # Close DB connection
 cursor.close()
 conn.close()

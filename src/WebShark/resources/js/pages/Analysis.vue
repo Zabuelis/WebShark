@@ -185,7 +185,7 @@ const filteredPackets = computed(() => {
         p.l4_protocol?.toLowerCase().includes(search) ||
         p.src_port.toString().includes(search) ||
         p.dst_port.toString().includes(search) ||
-        p.l7_attributes.Protocol?.toLowerCase().includes(search)
+        p.l7_attributes?.Protocol?.toLowerCase().includes(search)
     )
 })
 
