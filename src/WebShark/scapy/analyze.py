@@ -1,6 +1,5 @@
 import sys
 import os
-from time import sleep
 import psycopg2
 import psycopg2.extras
 import json
@@ -14,21 +13,22 @@ from analyzer_modules import *
 # in our case dict that maps: layer -> protocol name -> function.
 
 # Define upper protocol fields for retreival. All of them can be found here https://www.wireshark.org/docs/dfref/
+# Keys are used as filters for tshark, they must exactly match with the documentation
 tshark_protocols = {
     # HTTP 1/1.1 fields
-    "http1_fields": [ "http.request.version", "http.authorization", "http.response.version", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection", "http.response.phrase", "http.file_data", "http.content_length"],
+    "http": [ "http.request.version", "http.authorization", "http.response.version", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection", "http.response.phrase", "http.file_data", "http.content_length"],
     # DNS fields
-    "dns_fields": [ "dns.id", "dns.flags", "dns.flags.response", "dns.qry.name", "dns.qry.type", "dns.resp.name", "dns.resp.type" ],
+    "dns": [ "dns.id", "dns.flags", "dns.flags.response", "dns.qry.name", "dns.qry.type", "dns.resp.name", "dns.resp.type" ],
     # DHCPv4 fields
-    "dhcp_fields": [ "dhcp.id", "dhcp.ip.client", "dhcp.ip.relay", "dhcp.ip.server", "dhcp.ip.your",  "dhcp.option.dhcp", "dhcp.option.subnet_mask", "dhcp.option.request_list_item"],
+    "dhcp": [ "dhcp.id", "dhcp.ip.client", "dhcp.ip.relay", "dhcp.ip.server", "dhcp.ip.your",  "dhcp.option.dhcp", "dhcp.option.subnet_mask", "dhcp.option.request_list_item"],
     # TLS fields
-    "tls_fields": [ "tls.app_data_proto", "tls.app_data", "tls.record.version", "tls.record.length" ],
+    "tls": [ "tls.app_data_proto", "tls.app_data", "tls.record.version", "tls.record.length" ],
     # SSH fields
-    "ssh_fields" : [ "ssh.protocol", "ssh.direction" ]
+    "ssh" : [ "ssh.protocol", "ssh.direction", "ssh.encrypted_packet", "ssh.packet_length", "ssh.packet_length_encrypted", "ssh.message_code" ]
 }
 
 # Used to separate fields inside the return of tshark command
-# Unique symbol which will never be encountered in real packet data, improvement is to use ek (ElasticSearch format)
+# Unique symbol which will never be encountered in real traffic data.
 field_separator = "\u001f"   # Special ascii character Unit Separator
 
 
@@ -115,41 +115,41 @@ register("L4", "ICMP", handle_icmp)
 # Handle L7 protocols
 def handle_http1(packet):
     http_header = {
-        "protocol": "HTTP",
-        "version": None,
-        "content_length": packet.get("http.content_length"),
-        "payload": packet.get("http.file_data")
+        "Protocol": "HTTP",
+        "Version": None,
+        "Content_Length": packet.get("http.content_length"),
+        "Payload": packet.get("http.file_data")
     }
     if packet.get("http.request.version"):
-        http_header.update({"version": packet.get("http.request.version")})
-        http_header["request_method"] = packet.get("http.request.method")
-        http_header["request_uri"] = packet.get("http.request.uri")
-        http_header["full_uri"] = packet.get("http.request.full_uri")
-        http_header["user_agent"] = packet.get("http.user_agent")
-        http_header["user_credentials"] = packet.get("http.authorization")
+        http_header.update({"Version": packet.get("http.request.version")})
+        http_header["Request_Method"] = packet.get("http.request.method")
+        http_header["Request_URI"] = packet.get("http.request.uri")
+        http_header["Full_URI"] = packet.get("http.request.full_uri")
+        http_header["User_Agent"] = packet.get("http.user_agent")
+        http_header["User_Credentials"] = packet.get("http.authorization")
     elif packet.get("http.response.version"):
-        http_header.update({"version": packet.get("http.response.version")})
-        http_header["response_code"] = packet.get("http.response.code")
-        http_header["response_phrase"] = packet.get("http.response.phrase")
+        http_header.update({"Version": packet.get("http.response.version")})
+        http_header["Response_Code"] = packet.get("http.response.code")
+        http_header["Response_Phrase"] = packet.get("http.response.phrase")
     else:
         return {}
-    http_header["keep_alive"] = packet.get("http.connection")
+    http_header["Keep_Alive"] = packet.get("http.connection")
     return http_header
 
 def handle_dns(packet):
     dns_header = {
-        "protocol": "DNS",
-        "transaction_id": packet.get("dns.id"),
-        "flags": packet.get("dns.flags")
+        "Protocol": "DNS",
+        "Transaction_ID": packet.get("dns.id"),
+        "Flags": packet.get("dns.flags")
     }
     if packet.get("dns.flags.response") == "False":
-        dns_header["type"] = "query"
-        dns_header["query_name"] = packet.get("dns.qry.name")
-        dns_header["query_type"] = packet.get("dns.qry.type")
+        dns_header["Type"] = "Query"
+        dns_header["Query_Name"] = packet.get("dns.qry.name")
+        dns_header["Query_Type"] = packet.get("dns.qry.type")
     elif packet.get("dns.flags.response") == "True":
-        dns_header["type"] = "response"
-        dns_header["response_name"] = packet.get("dns.resp.name")
-        dns_header["response_type"] = packet.get("dns.resp.type")
+        dns_header["Type"] = "Response"
+        dns_header["Response_Name"] = packet.get("dns.resp.name")
+        dns_header["Response_Type"] = packet.get("dns.resp.type")
     else:
         return {}
     
@@ -157,44 +157,45 @@ def handle_dns(packet):
 
 def handle_dhcp(packet):
     dhcp_header = {
-        "protocol": "DHCP",
-        "transaction_id": packet.get("dhcp.id"),
-        "client_ip_address": packet.get("dhcp.ip.client"),
-        "relay_ip_address": packet.get("dhcp.ip.relay"),
-        "server_ip_address": packet.get("dhcp.ip.server"),
-        "your_ip_address": packet.get("dhcp.ip.relay"),
-        "dhcp_message_type": protocol_contexts.dhcp_message_type.get(packet.get("dhcp.option.dhcp")),
-        "subnet_mask": packet.get("dhcp.option.subnet_mask"),
-        "request_list": packet.get("dhcp.option.request_list_item")
+        "Protocol": "DHCP",
+        "Transaction_ID": packet.get("dhcp.id"),
+        "Client_IP_Address": packet.get("dhcp.ip.client"),
+        "Relay_IP_Address": packet.get("dhcp.ip.relay"),
+        "Server_IP_Address": packet.get("dhcp.ip.server"),
+        "Your_IP_Address": packet.get("dhcp.ip.your"),
+        "DHCP_Message_Type": protocol_contexts.dhcp_message_type.get(packet.get("dhcp.option.dhcp")),
+        "Subnet_Mask": packet.get("dhcp.option.subnet_mask"),
+        "Request_List": packet.get("dhcp.option.request_list_item")
     }
     # Convert request list from code to name
-    if dhcp_header["request_list"]:
-        requests = dhcp_header["request_list"].split(",")
-        list = ""
-        for request in requests:
-            request = request.strip()
-            context = protocol_contexts.dhcp_request_list.get(request)
-            if context:
-                list += context
-        dhcp_header["request_list"] = list
+    if dhcp_header["Request_List"]:
+        dhcp_header["Request_List"] = helpers.translate_message(",", protocol_contexts.dhcp_request_list, dhcp_header["Request_List"])
 
     return dhcp_header
 
 def handle_tls(packet):
     return {
-        "protocol": "TLS",
-        "version": protocol_contexts.tls_name_versions.get(packet.get("tls.record.version")),
-        "record_length": packet.get("tls.record.length"),
-        "encrypted_protocol": packet.get("tls.app_data_proto"),
-        "encrypted_content": packet.get("tls.app_data")
+        "Protocol": "TLS",
+        "Version": protocol_contexts.tls_name_versions.get(packet.get("tls.record.version")),
+        "Record_Length": packet.get("tls.record.length"),
+        "Encrypted_Protocol": packet.get("tls.app_data_proto"),
+        "Encrypted_Content": packet.get("tls.app_data")
     }
 
 def handle_ssh(packet):
-    return {
-        "protocol": "SSH",
-        "ssh_version": packet.get("ssh.protocol"),
-        "ssh_direction": packet.get("ssh.direction")
+    ssh_header = {
+        "Protocol": "SSH",
+        "SSH_Version": packet.get("ssh.protocol"),
+        "SSH_Direction": protocol_contexts.ssh_direction.get(packet.get("ssh.direction")),
+        "SSH_Encrypted_Packet": packet.get("ssh.encrypted_packet"),
+        "SSH_Packet_Length": packet.get("ssh.packet_length"),
+        "SSH_Packet_Length (Encrypted)": packet.get("ssh.packet_length_encrypted"),
+        "SSH_Message_Code": packet.get("ssh.message_code"),
     }
+    if ssh_header["SSH_Message_Code"]:
+        ssh_header.update({"Translated_Message": helpers.translate_message(",", protocol_contexts.ssh_message_codes, ssh_header["SSH_Message_Code"])})
+
+    return ssh_header
 
 register("L7", "TLS", handle_tls)
 register("L7", "HTTP1", handle_http1)
@@ -211,12 +212,13 @@ def identify_l7(packet):
         return "DHCP"
     elif packet.get("tls.record.version"):
         return "TLS"
-    elif packet.get("ssh.protocol"):
+    elif packet.get("ssh.direction"):
         return "SSH"
     return None
     
 def analyze_tshark(packet):
     result = {
+        "id": packet.get("frame.number"),
         "layers":{
             "L7": {},
         }
@@ -231,36 +233,42 @@ def analyze_tshark(packet):
 
 # Create a subprocess (same as fork) that runs tshark
 # Subprocess uses a pipe to receive data from tshark (only a limited amount of data is stored in the memory).
-def execute_tshark(file_path):
+def create_tshark(file_path):
     # Construct argument string of required fields
     analysis_fields = []
+    filter_fields = ""
     if tshark_protocols:
         for protocol in tshark_protocols:
-            protocol_fields = tshark_protocols.get(protocol)
-            if protocol_fields:
-                    for field in protocol_fields:
-                        analysis_fields.extend(["-e", field])
+            if protocol:
+                filter_fields += " | " + protocol
+                protocol_fields = tshark_protocols.get(protocol)
+                if protocol_fields:
+                        for field in protocol_fields:
+                            analysis_fields.extend(["-e", field])
 
-    # If tshark becomes a bottleneck it could be optimized to only parse through the needed protocols
-    # In that case synchronization would break. Potential solution would be to insert upper layer data after scapy processing
+    filter_fields = filter_fields.strip(" | ")
+    filter_fields = filter_fields.replace("|", "or")
+
     try:
         tshark_process = subprocess.Popen(["tshark", "-r", file_path,
-            "-T", "fields",
-            "-e", "frame.number",
-            *analysis_fields,
-            "-E", f"separator={field_separator}",
+            "-Y", filter_fields,    # Only return defined protocols
+            "-T", "fields", # Field format
+            "-e", "frame.number",   # Return specified fields only
+            *analysis_fields,  
+            "-E", f"separator={field_separator}",   # Separate fields with a specified separator
             "-E", "header=y"    # Return headers
             # Use the same pipe for stoud and stderr, avoids blocking read in a simplified manner
         ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     except:
         raise Exception("Tshark failed to start")
+    
+    return tshark_process
 
-    # First line returns a header with extracted field names, if it contains "tshark:" it means tshark has encountered an error
+def create_tshark_stream(tshark_process):
     header = tshark_process.stdout.readline()
+    # First line returns a header with extracted field names, if it contains "tshark:" it means tshark has encountered an error    
     if "tshark:" in header:
         error_message = tshark_process.stdout.readline()
-        tshark_process.kill()
-        tshark_process.wait()
         raise Exception("Tshark has encountered some errors: " + header + error_message)
     else:
         header = header.replace("\n", "").split(field_separator)
@@ -272,10 +280,6 @@ def execute_tshark(file_path):
         packet = dict(zip(header, packet))
 
         yield analyze_tshark(packet)
-
-    # Wait for the process to finish
-    tshark_process.wait()
-
 
 # Hex dump fallback for unknown protocols
 def get_hex_dump(pkt):
@@ -345,7 +349,8 @@ def analyze_packet(pkt, index):
 
 # Entry point
 file_path = sys.argv[1]
-redis_id = sys.argv[2]
+analysis_id = sys.argv[2]
+
 # Get environmental DB connection variables
 dbName = os.getenv('DB_DATABASE')
 dbUser = os.getenv('DB_USERNAME')
@@ -355,6 +360,7 @@ dbHost = os.getenv('DB_HOST')
 if not validate_pcap(file_path):
     print(json.dumps({"error": "Analysis failed due to an invalid PCAP file"}))
     sys.exit(1)
+
 try:
     # Establish connection to the DB
     conn = psycopg2.connect(f'host={dbHost} dbname={dbName} user={dbUser} password={dbPass}')
@@ -362,13 +368,17 @@ try:
 except:
     print(json.dumps({"error": "Failed to establish DB connection"}))
     sys.exit(1)
+
 total_size = os.path.getsize(file_path)
+rows = []
+
+# Critical operation (if this fails, analysis can't be displayed)
 try:
     with PcapReader(file_path) as reader:
         row_limit = 1000
         query = """INSERT INTO packet 
             (
-                redis_id,
+                analysis_id,
                 packet_number,
                 l3_protocol,
                 src_ip, 
@@ -376,14 +386,16 @@ try:
                 captured_packet_length,
                 src_port, 
                 dst_port,
+                tcp_flag,
+                tcp_window,
+                tcp_ack_number,
+                tcp_seq_number,
                 l4_protocol,
-                l7_attributes,
                 timestamp,
                 raw_hex
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
-        rows = []
-        tshark_stream = execute_tshark(file_path)
-        for index, (pkt, tshark_pkt) in enumerate(zip(reader, tshark_stream), start=1):
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+
+        for index, pkt in enumerate(reader, start=1):
             result = analyze_packet(pkt, index)
 
             if index % 500 == 0:
@@ -393,18 +405,15 @@ try:
                 if total_size > 0:
                     progress = min(int((current_pos / total_size) * 100), 100)
             
-                try:
-                    cursor.execute(
-                        "UPDATE redis_job SET progress_percentage = %s WHERE redis_id = %s", 
-                        (progress, redis_id)
-                    )
-                    conn.commit()
-                except Exception as e:
-                    print(json.dumps({"error": "Failed to update progress: " + str(e)}))
+                cursor.execute(
+                    "UPDATE analysis_job SET progress_percentage = %s WHERE analysis_id = %s", 
+                    (progress, analysis_id)
+                )
+                conn.commit()
             
             # Make a list of 1000 tuples and then commit to DB
             rows.append((
-                redis_id, 
+                analysis_id, 
                 result["id"],
                 result["layers"]["L3"].get("protocol"),
                 result["layers"]["L3"].get("src"), 
@@ -412,15 +421,15 @@ try:
                 result["layers"]["L3"].get("length"),
                 result["layers"]["L4"].get("src_port"), 
                 result["layers"]["L4"].get("dst_port"),
+                result["layers"]["L4"].get("flags"),
+                result["layers"]["L4"].get("window"),
+                result["layers"]["L4"].get("ack"),
+                result["layers"]["L4"].get("seq"),
                 result["layers"]["L4"].get("protocol"),
-                json.dumps(tshark_pkt["layers"]["L7"]),
                 result["timestamp"],
                 result["hex_dump"]
             ))
             
-            # Execute batch works faster than inserting line by line (about 20-30%), depending on the need, faster alternative might be required
-            # Executing all rows tends to reduce 1-2 seconds (for 2mb file), but increases memory consumption
-            # Comparing execute_batch with executemany (~2mb file) revealed no difference despite documentation telling different
             if len(rows) >= row_limit:
                 psycopg2.extras.execute_batch(cursor, query, rows)
                 conn.commit()
@@ -431,16 +440,54 @@ try:
         conn.commit()
 
     cursor.execute(
-        "UPDATE redis_job SET progress_percentage = 100 WHERE redis_id = %s", 
-        (redis_id,)
+        "UPDATE analysis_job SET progress_percentage = 100 WHERE analysis_id = %s", 
+        (analysis_id,)
+    )
+    cursor.execute(
+        "UPDATE analysis_job SET status = %s WHERE analysis_id = %s", 
+        ("finished", analysis_id)
     )
     conn.commit()
-    sleep(0.5) # Ensure the last update is visible in the UI before we close the connection
+
 except Exception as e:
     cursor.close()
     conn.close()
     raise e
 
+# Optional operation (if this fails L3-L4 information will be displayed in the analysis)
+try:
+    tshark_process = create_tshark(file_path)
+    tshark_stream = create_tshark_stream(tshark_process)
+
+    query = """
+        UPDATE packet set l7_attributes = %s WHERE analysis_id = %s AND packet_number = %s
+    """
+    rows.clear()
+    for pkt in tshark_stream:
+        rows.append((
+            json.dumps(pkt["layers"]["L7"]),
+            analysis_id,
+            pkt["id"]
+        ))
+        if len(rows) >= row_limit:
+            psycopg2.extras.execute_batch(cursor, query, rows)
+            conn.commit()
+            rows.clear()
+
+    if len(rows) > 0:
+        psycopg2.extras.execute_batch(cursor, query, rows)
+        conn.commit()
+
+except Exception as e:
+        tshark_process.kill()
+        tshark_process.wait()
+        cursor.close()
+        conn.close()
+        raise e
+
+
+
+tshark_process.wait()
 # Close DB connection
 cursor.close()
 conn.close()
