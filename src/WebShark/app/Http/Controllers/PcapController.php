@@ -121,10 +121,25 @@ class PcapController extends Controller
 
         $perPage = min((int) $request->query('per_page', 100), 500);
         $page = max((int) $request->query('page', 1), 1);
+        $query = trim($request->query('q', ''));
 
-        $total = Packet::where('redis_id', $id)->count();
+        $queryBuilder = Packet::where('redis_id', $id);
 
-        $packets = Packet::where('redis_id', $id)
+        if ($query !== '') {
+            $term = "%{$query}%";
+
+            $queryBuilder->where(function ($q) use ($term) {
+                $q->where('src_ip', 'like', $term)
+                ->orWhere('dst_ip', 'like', $term)
+                ->orWhere('l3_protocol', 'like', $term)
+                ->orWhere('l4_protocol', 'like', $term)
+                ->orWhere('l7_protocol', 'like', $term);
+            });
+        }
+
+        $total = $queryBuilder->count();
+
+        $packets = $queryBuilder
             ->orderBy('packet_number', 'asc')
             ->forPage($page, $perPage)
             ->get([
@@ -148,71 +163,6 @@ class PcapController extends Controller
             'page' => $page,
             'per_page' => $perPage,
             'total_pages' => (int) ceil($total / $perPage),
-        ]);
-    }
-
-    /**
-     * Searches across all packets in the DB
-     */
-    public function search(Request $request, string $id): JsonResponse
-    {
-        $job = RedisJob::where('redis_id', $id)->firstOrFail();
-
-        if ($job->status !== 'finished') {
-            return response()->json(['error' => 'Analysis not complete.'], 409);
-        }
-
-        $query = trim($request->query('q', ''));
-
-        // Empty query = return nothing, frontend will switch back to virtual scroll
-        if ($query === '') {
-            return response()->json(['data' => [], 'total' => 0, 'query' => '']);
-        }
-
-        $term = '%' . $query . '%';
-
-        // Count total matches first (without the 500 cap) so the UI can show
-        // "showing 500 of 1243 matches" when there are a lot of results
-        $total = Packet::where('redis_id', $id)
-            ->where(function ($q) use ($term) {
-                $q->where('src_ip', 'like', $term)
-                  ->orWhere('dst_ip', 'like', $term)
-                  ->orWhere('l3_protocol', 'like', $term)
-                  ->orWhere('l4_protocol', 'like', $term)
-                  ->orWhere('l7_protocol', 'like', $term);
-            })
-            ->count();
-
-        // Fetch up to 500 matching rows
-        $packets = Packet::where('redis_id', $id)
-            ->where(function ($q) use ($term) {
-                $q->where('src_ip', 'like', $term)
-                  ->orWhere('dst_ip', 'like', $term)
-                  ->orWhere('l3_protocol', 'like', $term)
-                  ->orWhere('l4_protocol', 'like', $term)
-                  ->orWhere('l7_protocol', 'like', $term);
-            })
-            ->orderBy('packet_number', 'asc')
-            ->limit(500)
-            ->get([
-                'packet_id',
-                'packet_number',
-                'timestamp',
-                'l3_protocol',
-                'l4_protocol',
-                'l7_protocol',
-                'src_ip',
-                'dst_ip',
-                'src_port',
-                'dst_port',
-                'captured_packet_length',
-                'raw_hex',
-            ]);
-
-        return response()->json([
-            'data'  => $packets,
-            'total' => $total,
-            'query' => $query,
         ]);
     }
 

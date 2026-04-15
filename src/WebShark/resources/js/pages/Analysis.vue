@@ -107,30 +107,49 @@ const PER_PAGE = 100
 const WINDOW_SIZE = 5
 const ROW_HEIGHT = 36
 
+const filterText = ref('')
+const isSearchActive = computed(() => filterText.value.trim() !== '')
+
 const pageStore = new Map()
 const loadedPages = ref(new Set())
 const loadingPages = new Set()
 
-const totalPackets = ref(props.total_packets ?? 0)
+const totalItems = ref(props.total_packets ?? 0)
 const totalPages = ref(0)
 
-const packets = ref([])
+const items = ref([])
+const isSearching = ref(false)
 
-function rebuildPacketList() {
+let searchDebounceTimer = null
+
+function resetStore() {
+    pageStore.clear()
+    loadedPages.value = new Set()
+    loadingPages.clear()
+    totalItems.value = 0
+    totalPages.value = 0
+    items.value = []
+}
+
+function rebuildList() {
     const out = []
+
     for (let p = 1; p <= totalPages.value; p++) {
         const rows = pageStore.get(p)
+
         if (rows) {
             out.push(...rows)
         } else {
             const start = (p - 1) * PER_PAGE + 1
-            const end   = Math.min(p * PER_PAGE, totalPackets.value)
+            const end = Math.min(p * PER_PAGE, totalItems.value)
+
             for (let i = start; i <= end; i++) {
                 out.push({ _placeholder: true, packet_number: i })
             }
         }
     }
-    packets.value = out
+
+    items.value = out
 }
 
 async function fetchPage(page) {
@@ -140,23 +159,40 @@ async function fetchPage(page) {
     if (loadingPages.has(page)) return
 
     loadingPages.add(page)
+
+    if (isSearchActive.value) {
+        isSearching.value = true
+    }
+
     try {
-        const response = await fetch(`/pcap/analysis/${props.id}/packets?page=${page}&per_page=${PER_PAGE}`)
+        const url = new URL(`/pcap/analysis/${props.id}/packets`, window.location.origin)
+
+        url.searchParams.set('page', page)
+        url.searchParams.set('per_page', PER_PAGE)
+
+        if (isSearchActive.value) {
+            url.searchParams.set('q', filterText.value.trim())
+        }
+
+        const response = await fetch(url)
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
         const json = await response.json()
 
-        if (totalPackets.value === 0) totalPackets.value = json.total
-        if (totalPages.value === 0) totalPages.value = json.total_pages
+        totalItems.value = json.total
+        totalPages.value = json.total_pages ?? 1
 
         pageStore.set(page, json.data)
         loadedPages.value = new Set([...loadedPages.value, page])
 
         evictDistantPages(page)
-        rebuildPacketList()
+        rebuildList()
+
     } catch (e) {
-        console.error('Failed to fetch page', page, e)
+        console.error('Fetch failed', page, e)
     } finally {
         loadingPages.delete(page)
+        isSearching.value = false
     }
 }
 
@@ -168,18 +204,16 @@ function evictDistantPages(currentPage) {
     for (const p of loadedPages.value) {
         if (p < lo || p > hi) {
             pageStore.delete(p)
+
             const next = new Set(loadedPages.value)
             next.delete(p)
             loadedPages.value = next
         }
     }
-    rebuildPacketList()
+    rebuildList()
 }
 
 function onScroll(event) {
-    // do not trigger page fetches while a search is active
-    if (isSearchActive.value) return
-
     const scrollTop = event.target.scrollTop
     const rowIndex = Math.floor(scrollTop / ROW_HEIGHT)
     const anchorPage = Math.floor(rowIndex / PER_PAGE) + 1
@@ -199,8 +233,8 @@ const jumpHighlight = ref(null)
 async function jumpToPacket() {
     const n = parseInt(jumpInput.value, 10)
 
-    if (!n || n < 1 || (totalPackets.value > 0 && n > totalPackets.value)) {
-        jumpError.value = `Enter a number between 1 and ${totalPackets.value.toLocaleString()}`
+    if (!n || n < 1 || (totalItems.value > 0 && n > totalItems.value)) {
+        jumpError.value = `Enter a number between 1 and ${totalItems.value.toLocaleString()}`
         return
     }
 
@@ -222,50 +256,20 @@ async function jumpToPacket() {
     isJumping.value = false
 }
 
-// server-side search
-const filterText = ref('')
-const searchResults = ref([]) // packets returned by the server
-const searchTotal = ref(0) // total matches in DB (may be > searchResults.length)
-const isSearching = ref(false) // true while request is in flight
-
-const isSearchActive = computed(() => filterText.value.trim() !== '')
-
-let searchDebounceTimer = null
-
-// Watch the filter input and fire a search 300ms after the user stops typing
-watch(filterText, (newVal) => {
+watch(filterText, (val) => {
     clearTimeout(searchDebounceTimer)
 
-    if (newVal.trim() === '') {
-        searchResults.value = []
-        searchTotal.value = 0
-        isSearching.value = false // Reset searching state
+    resetStore()
+
+    if (val.trim() === '') {
+        initVirtualList()
         return
     }
 
-    isSearching.value = true 
-
     searchDebounceTimer = setTimeout(() => {
-        runSearch(newVal.trim())
+        fetchPage(1)
     }, 300)
 })
-
-
-async function runSearch(query) {
-    isSearching.value = true
-    try {
-        const response = await fetch(`/pcap/analysis/${props.id}/search?q=${encodeURIComponent(query)}`)
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        const json = await response.json()
-
-        searchResults.value = json.data
-        searchTotal.value   = json.total
-    } catch (e) {
-        console.error('Search failed', e)
-    } finally {
-        isSearching.value = false
-    }
-}
 
 // Polling and init
 
@@ -317,33 +321,33 @@ watch(
 
     <!-- Show this only if the status is 'dispatching' -->
     <div v-if="props.status === 'dispatching'" 
-         class="fixed inset-0 z-50 bg-slate-900 flex flex-col items-center justify-center text-center px-6">
+         class="fixed inset-0 z-50 flex flex-col items-center justify-center text-center px-6">
         
         <!-- The Content -->
         <div class="relative z-10 flex flex-col items-center">
 
             <!-- Spinner -->
-            <div class="w-16 h-16 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-8"></div>
+            <div class="w-16 h-16 border-4 border-blue-400/20 border-t-blue-400 rounded-full animate-spin mb-8"></div>
             
             <!-- Status Message -->
-            <p class="text-slate-400 font-mono text-sm max-w-md leading-relaxed">
+            <p class="text-slate-800 font-mono text-sm max-w-md leading-relaxed">
                 Status: <span class="animate-pulse">{{ props.message }}</span>
             </p>
 
             <!-- Progress Bar -->
-            <div class="w-64 bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700">
-                <div class="bg-blue-500 h-full transition-all duration-500 ease-out" 
+            <div class="w-64 h-2 rounded-full overflow-hidden border border-slate-400">
+                <div class="bg-blue-400 h-full transition-all duration-500 ease-out" 
                      :style="{ width: props.progress + '%' }">
                 </div>
             </div>
-            <p class="text-slate-500 text-xs mt-2 font-mono">{{ props.progress }}% processed</p>
+            <p class="text-slate-800 text-xs mt-2 font-mono">{{ props.progress }}% processed</p>
 
         </div>
     </div>
 
     <!-- Show this only if the status is 'failed' -->
-    <div v-else-if="props.status === 'failed'" class="flex flex-col items-center justify-center h-screen bg-slate-900 text-white">
-        <p class="text-slate-400 mt-2">{{ props.message }}</p>
+    <div v-else-if="props.status === 'failed'" class="flex flex-col items-center justify-center h-screen text-white">
+        <p class="text-slate-800 mt-2">{{ props.message }}</p>
         <Link :href="route('home')" class="mt-6 px-4 py-2 bg-blue-600 rounded-lg">
             Go back to home page
         </Link>
@@ -422,7 +426,7 @@ watch(
                                 @keydown.enter="jumpToPacket"
                                 type="number"
                                 min="1"
-                                :max="totalPackets || undefined"
+                                :max="totalItems || undefined"
                                 placeholder="Go to #"
                                 :class="[
                                     'w-28 px-3 py-2 bg-slate-100 border rounded-md text-sm font-mono',
@@ -459,17 +463,14 @@ watch(
                         <div>Info</div>
                     </div>
 
-                    <!-- two modes depending on whether search is active -->
-
-                    <!-- MODE 1: no search query = normal virtual scroll -->
+                    <!-- virtual scroll -->
                     <RecycleScroller
-                        v-if="!isSearchActive"
                         ref="scrollerRef"
                         class="flex-1"
-                        :items="packets"
+                        :items="items"
                         :item-size="ROW_HEIGHT"
                         key-field="packet_number"
-                        @scroll.native="onScroll"
+                        @scroll="onScroll"
                     >
                         <template #default="{ item: packet }">
                             <div
@@ -482,82 +483,51 @@ watch(
                                 ]"
                             >
                                 <div class="text-slate-400">{{ packet.packet_number }}</div>
-                                <div class="text-slate-500 text-xs">{{ packet._placeholder ? 'Loading...' : formatTime(packet.timestamp) + 's' }}</div>
+                                <div class="text-slate-500 text-xs">
+                                    {{ packet._placeholder ? 'Loading...' : formatTime(packet.timestamp) + 's' }}
+                                </div>
                                 <div class="text-slate-800 font-medium">{{ packet.src_ip }}</div>
                                 <div class="text-slate-800">{{ packet.dst_ip }}</div>
                                 <div>
-                                    <span v-if="!packet._placeholder" :class="getProtoColor(packet.l4_protocol)" class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
+                                    <span v-if="!packet._placeholder"
+                                        :class="getProtoColor(packet.l4_protocol)"
+                                        class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
                                         {{ packet.l4_protocol }}
                                     </span>
                                 </div>
                                 <div class="text-slate-500 text-xs">{{ packet.captured_packet_length }}</div>
-                                <div class="text-slate-600 truncate text-xs italic">{{ packet._placeholder ? 'Loading...' : 'Packet data...' }}</div>
+                                <div class="text-slate-600 truncate text-xs italic">
+                                    {{ packet._placeholder ? 'Loading...' : 'Packet data...' }}
+                                </div>
                             </div>
                         </template>
                     </RecycleScroller>
 
-                    <!-- MODE 2: search is active = plain scrollable list of results -->
-                    <div v-else class="flex-1 overflow-y-auto">
+                    <div class="text-xs text-slate-500 px-4 py-2 border-t border-slate-200 bg-white">
 
-                        <!-- Loading state -->
-                        <div v-if="isSearching" class="p-10 text-center text-slate-400">
-                            <p class="animate-pulse">Searching for packets...</p>
-                        </div>
+                        <!-- Normal -->
+                        <template v-if="!isSearchActive">
+                            <span class="font-bold text-slate-900">
+                                {{ totalItems.toLocaleString() }}
+                            </span>
+                            packets total
+                        </template>
 
-                        <!-- No results state -->
-                        <div v-if="!isSearching && searchResults.length === 0" class="p-10 text-center text-slate-400">
-                            No packets match "{{ filterText }}"
-                        </div>
+                        <!-- Searching -->
+                        <template v-else-if="isSearching">
+                            Searching for
+                            "<span class="font-mono font-bold text-slate-900">{{ filterText }}</span>"...
+                        </template>
 
                         <!-- Results -->
-                        <div
-                            v-for="packet in searchResults"
-                            :key="packet.packet_id"
-                            @click="handlePacketClick(packet)"
-                            :class="[
-                                'packet-row grid gap-x-4 px-6 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono',
-                                { 'bg-blue-100': selectedPacket === packet }
-                            ]"
-                        >
-                            <div class="text-slate-400">{{ packet.packet_number }}</div>
-                            <div class="text-slate-500 text-xs">{{ formatTime(packet.timestamp) }}s</div>
-                            <div class="text-slate-800 font-medium">{{ packet.src_ip }}</div>
-                            <div class="text-slate-800">{{ packet.dst_ip }}</div>
-                            <div>
-                                <span :class="getProtoColor(packet.l4_protocol)" class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
-                                    {{ packet.l4_protocol }}
-                                </span>
-                            </div>
-                            <div class="text-slate-500 text-xs">{{ packet.captured_packet_length }}</div>
-                            <div class="text-slate-600 truncate text-xs italic">Packet data...</div>
-                        </div>
-                    </div>
+                        <template v-else>
+                            <span class="font-bold text-slate-900">
+                                {{ totalItems.toLocaleString() }}
+                            </span>
+                            results for
+                            "<span class="font-mono">{{ filterText }}</span>"
+                        </template>
 
-                    <!-- Status bar -->
-                    <div class="bg-white border-t border-slate-200 px-6 py-3 flex items-center justify-between shrink-0">
-
-                        <!-- shows different info depending on mode -->
-                        <div class="text-xs text-slate-500">
-
-                            <!-- Normal mode: total packet count -->
-                            <template v-if="!isSearchActive">
-                                <span class="font-bold text-slate-900">{{ totalPackets.toLocaleString() }}</span> packets total
-                            </template>
-
-                            <!-- Search mode: how many results, capped at 500 -->
-                            <template v-else-if="isSearching">
-                                Searching for "<span class="font-mono font-bold text-slate-900">{{ filterText }}</span>"...
-                            </template>
-                            <template v-else>
-                                <span class="font-bold text-slate-900">{{ searchResults.length.toLocaleString() }}</span>
-                                <template v-if="searchTotal > searchResults.length">
-                                    of <span class="font-bold text-slate-900">{{ searchTotal.toLocaleString() }}</span>
-                                </template>
-                                packets found
-                                <span v-if="searchTotal > 500" class="text-amber-600 ml-1">(showing first 500)</span>
-                            </template>
-
-                        </div>
                     </div>
 
                 </main>
@@ -626,7 +596,7 @@ watch(
 
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                             <p class="text-xs font-bold text-slate-400 uppercase">Packets Captured</p>
-                            <p class="text-3xl font-black text-blue-600">{{ totalPackets.toLocaleString() }}</p>
+                            <p class="text-3xl font-black text-blue-600">{{ totalItems.toLocaleString() }}</p>
                         </div>
 
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
