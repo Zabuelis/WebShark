@@ -116,6 +116,8 @@ services:
     working_dir: /var/www
     env_file:
       - ./src/WebShark/.env
+    environment:
+      - npm_config_cache=/tmp/.npm-cache
     volumes:
       - ./src/WebShark:/var/www
     ports:
