@@ -28,7 +28,7 @@ tshark_protocols = {
 }
 
 # Used to separate fields inside the return of tshark command
-# Unique symbol which will never be encountered in real packet data, improvement is to use ek (ElasticSearch format)
+# Unique symbol which will never be encountered in real traffic data.
 field_separator = "\u001f"   # Special ascii character Unit Separator
 
 
