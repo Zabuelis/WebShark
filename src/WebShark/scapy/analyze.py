@@ -373,6 +373,8 @@ except:
     print(json.dumps({"error": "Failed to establish DB connection"}))
     sys.exit(1)
 total_size = os.path.getsize(file_path)
+
+# Critical operation (if this fails, analysis can't be displayed)
 try:
     with PcapReader(file_path) as reader:
         row_limit = 1000
@@ -395,7 +397,7 @@ try:
                 raw_hex
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
         rows = []
-        tshark_stream = execute_tshark(file_path)
+
         for index, pkt in enumerate(reader, start=1):
             result = analyze_packet(pkt, index)
 
@@ -451,9 +453,24 @@ try:
         (analysis_id,)
     )
     conn.commit()
+    
+    cursor.execute(
+        "UPDATE analysis_job SET status = %s WHERE analysis_id = %s", 
+        ("finished", analysis_id)
+    )
+    conn.commit()
+    sleep(3)
 
+except Exception as e:
+    cursor.close()
+    conn.close()
+    raise e
+
+# Optional operation (if this fails L3-L4 information will be displayed in the analysis)
+try:
+    tshark_stream = execute_tshark(file_path)
     query = """
-        UPDATE packet set l7_attributes = %s WHERE analysis_id = %s AND packet_id = %s
+        UPDATE packet set l7_attributes = %s WHERE analysis_id = %s AND packet_number = %s
     """
     rows = []
     for pkt in tshark_stream:
@@ -470,9 +487,7 @@ try:
     if len(rows) > 0:
         psycopg2.extras.execute_batch(cursor, query, rows)
         conn.commit()
-    
 
-    sleep(0.5) # Ensure the last update is visible in the UI before we close the connection
 except Exception as e:
     cursor.close()
     conn.close()

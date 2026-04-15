@@ -18,8 +18,9 @@ class AnalyzePcap implements ShouldQueue
 
     public int $timeout = 600;
     private $filePath;
-    // Generic error message for the user
+    // Generic error messages for the user
     // Exact error should be only visible for the developers
+    private $applicationErrorMsg = "There was an error processing Application Layer data. It will not be displayed.";
     private $userErrorMsg = "There was an issue processing your pcap file. Please try again...";
 
     public function __construct(public string $uuid, public string $fileName)
@@ -71,14 +72,25 @@ class AnalyzePcap implements ShouldQueue
 
     private function updateRecord(bool $hasFailed): void{
         if($hasFailed){
-            AnalysisJob::where('analysis_id', '=', $this->uuid)->update([
-                'status' => 'failed',
-                'error_message' => $this->userErrorMsg,
-                'expires_at' => now()->addMinutes(10),
-            ]);
+            $status = AnalysisJob::where('analysis_id', '=', $this->uuid)->pluck('status')->first();
+            if($status === 'finished'){
+                // If L7 analytics fail, the results expire after one hour
+                AnalysisJob::where('analysis_id', '=', $this->uuid)->update([
+                    'l7_status' => 'failed',
+                    'error_message' => $this->applicationErrorMsg,
+                    'expires_at' => now()->addHours(1),
+                ]);
+            } else {
+                AnalysisJob::where('analysis_id', '=', $this->uuid)->update([
+                    'status' => 'failed',
+                    'l7_status' => 'failed',
+                    'error_message' => $this->userErrorMsg,
+                    'expires_at' => now()->addMinutes(10),
+                ]);
+            }
         } else {
             AnalysisJob::where('analysis_id', '=', $this->uuid)->update([
-                'status' => 'finished',
+                'l7_status' => 'finished',
                 'expires_at' => now()->addHours(2),
             ]);
         }

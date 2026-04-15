@@ -7,6 +7,7 @@ import Footer from '../components/Footere.vue'
 const props = defineProps({
     packets: Object,
     status: String,
+    l7_status: String,
     message: String,
     id: String,
     progress: Number,
@@ -86,7 +87,7 @@ const detailSections = computed(() => {
         ] : []
       ]
     },
-    Object.keys(p.l7_attributes).length !== 0 ? 
+    p.l7_attributes ?
     {
         title: "Application Layer",
         // Split the object into arrays of key:value pairs and map over them
@@ -111,7 +112,7 @@ const getProtoColor = (packet) => {
         'DHCP': 'bg-teal-100 text-teal-700 border-teal-200',
         "SSH": 'bg-sky-100 text-sky-700 border-sky-200'
     }
-    if(packet.l7_attributes.Protocol){
+    if(packet.l7_attributes?.Protocol){
         return colors[packet.l7_attributes.Protocol] || 'bg-slate-100 text-slate-700 border-slate-200'
     } else if (packet.l4_protocol){
         return colors[packet.l4_protocol] || 'bg-slate-100 text-slate-700 border-slate-200'
@@ -122,7 +123,7 @@ const getProtoColor = (packet) => {
 
 // Return the highest protocol to display
 const highestLevelProtocol = (packet) => {
-    if(packet.l7_attributes.Protocol){
+    if(packet.l7_attributes?.Protocol){
         return packet.l7_attributes.Protocol
     } else if(packet.l4_protocol){
         return packet.l4_protocol
@@ -134,7 +135,7 @@ const highestLevelProtocol = (packet) => {
 
 // Protocol specific for quick preview in the INFO column
 const protocolSpecificInformation = (packet) => {
-    switch(packet.l7_attributes.Protocol){
+    switch(packet.l7_attributes?.Protocol){
         case "TLS":
             return packet.l7_attributes.Version + " - " + packet.l7_attributes.Encrypted_Protocol
         case "DHCP":
@@ -193,9 +194,9 @@ onMounted(() => {
   if (props.status === 'dispatching') {
     const interval = setInterval(() => {
       router.reload({ 
-        only: ['packets', 'status', 'message', 'total_bytes', 'id', 'first_packet_time', 'last_packet_time', 'progress', 'expires_at'],
+        only: ['packets', 'l7_status', 'status', 'message', 'total_bytes', 'id', 'first_packet_time', 'last_packet_time', 'progress', 'expires_at'],
         onSuccess: () => {
-          if (props.status !== 'dispatching') {
+          if (props.status !== 'dispatching' && props.l7_status !== 'dispatching') {
             clearInterval(interval)
           }
         }
@@ -248,6 +249,17 @@ onMounted(() => {
         <Head title="Analysis page" />
 
         <NavBar/>
+
+        <!-- Spinner to indicate L7 parsing -->
+        <div v-if="props.l7_status === 'dispatching'" class="bg-sky-100 flex gap-4 border border-sky-400 text-start text-sky-700 pl-6 py-2 justify-center items-center" role="status">
+            <span class="font-bold text-sm">Analyzing Application Layer Data</span>
+                <div class="w-6 h-6 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+        </div>
+
+        <!-- Show this if L7 analytics failed -->
+        <div v-if="props.l7_status === 'failed'" class="bg-sky-100 border border-sky-400 text-center text-sky-700 py-2 " role="alert">
+            <span class="font-bold text-sm">{{ props.message }}</span>
+        </div>
 
         <!-- Expiration Notice -->
         <div v-if="expires_at" class="px-6 py-2 bg-amber-50 text-amber-700 text-xs border-b border-amber-100 flex items-center justify-between">

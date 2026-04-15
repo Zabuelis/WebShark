@@ -66,11 +66,13 @@ class PcapController extends Controller
     {
         $job = AnalysisJob::where('analysis_id', $id)->firstOrFail();
         $status = $job->status;
+        $l7_status = $job->l7_status;
 
         // Default props
         $props = [
             'id' => $id,
             'status' => $status,
+            'l7_status' => $job->l7_status,
             'progress' => $job->progress_percentage,
             'expires_at' => $job->expires_at 
             ? \Carbon\Carbon::parse($job->expires_at)->diffForHumans([
@@ -94,6 +96,10 @@ class PcapController extends Controller
         if ($status === 'failed') {
             $props['message'] = $job->error_message ?? 'Analysis failed due to an system error. Error code: 3';
             return Inertia::render('Analysis', $props);
+        }
+
+        if ($l7_status === 'failed') {
+            $props['message'] = $job->error_message;
         }
 
         // If we are here, everything went well
@@ -130,6 +136,7 @@ class PcapController extends Controller
             'analysis_id' => $uuid,
             'file_path' => $rebuiltFileName,
             'status' => 'dispatching',
+            'l7_status' => 'dispatching'
         ]);
 
         return $uuid;
