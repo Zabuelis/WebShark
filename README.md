@@ -118,6 +118,12 @@ sudo docker compose --env-file src/WebShark/.env down
 
 ---
 
+# Example PCAP files
+
+Example PCAP files can be found in 'src/pcap_samples'
+
+---
+
 # Debugging & Maintenance
 
 ## To see PostgreSQL
