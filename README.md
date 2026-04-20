@@ -122,7 +122,7 @@ sudo docker compose --env-file src/WebShark/.env down
 
 ## To see PostgreSQL
 ```bash
-sudo docker compose --env-file src/WebShark/.env exec db psql -U webshark -d websharkdb -c "SELECT * FROM redis_job;"
+sudo docker compose --env-file src/WebShark/.env exec db psql -U webshark -d websharkdb -c "SELECT * FROM analysis_job;"
 ```
 
 ## To see Redis

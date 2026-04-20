@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Models\RedisJob;
+use App\Models\AnalysisJob;
 use App\Models\Packet;
 use App\Jobs\AnalyzePcap;
 use App\Models\IpMarker;
@@ -55,7 +55,7 @@ class PcapController extends Controller
                 'message' => $e->getMessage(),
                 'exception' => $e,
             ]);
-            return redirect()->back()->with('error', $e->getMessage());
+            return redirect()->back()->with('error', "There was an error processing your request. Please try again...");
         }
     }
 
@@ -64,13 +64,15 @@ class PcapController extends Controller
      */
     public function show(string $id)
     {
-        $job = RedisJob::where('redis_id', $id)->firstOrFail();
+        $job = AnalysisJob::where('analysis_id', $id)->firstOrFail();
         $status = $job->status;
+        $l7_status = $job->l7_status;
 
         // Default props
         $props = [
             'id' => $id,
             'status' => $status,
+            'l7_status' => $job->l7_status,
             'progress' => $job->progress_percentage,
             'expires_at' => $job->expires_at
                 ? \Carbon\Carbon::parse($job->expires_at)->diffForHumans(['parts' => 2, 'join' => true])
@@ -95,12 +97,16 @@ class PcapController extends Controller
             return Inertia::render('Analysis', $props);
         }
 
-        // If we are here, everything went well
-        $props['total_packets'] = Packet::where('redis_id', $id)->count();
-        $props['total_bytes']   = (int) Packet::where('redis_id', $id)->sum('captured_packet_length');
+        if ($l7_status === 'failed') {
+            $props['message'] = $job->error_message;
+        }
 
-        $first = Packet::where('redis_id', $id)->orderBy('packet_number', 'asc')->value('timestamp');
-        $last  = Packet::where('redis_id', $id)->orderBy('packet_number', 'desc')->value('timestamp');
+        // If we are here, everything went well
+        $props['total_packets'] = Packet::where('analysis_id', $id)->count();
+        $props['total_bytes']   = (int) Packet::where('analysis_id', $id)->sum('captured_packet_length');
+
+        $first = Packet::where('analysis_id', $id)->orderBy('packet_number', 'asc')->value('timestamp');
+        $last  = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->value('timestamp');
 
         $props['first_packet_time'] = $first ? (float) $first : 0;
         $props['last_packet_time']  = $last  ? (float) $last  : 0;
@@ -113,7 +119,7 @@ class PcapController extends Controller
      */
     public function packets(Request $request, string $id): JsonResponse
     {
-        $job = RedisJob::where('redis_id', $id)->firstOrFail();
+        $job = AnalysisJob::where('analysis_id', $id)->firstOrFail();
 
         if ($job->status !== 'finished') {
             return response()->json(['error' => 'Analysis not complete.'], 409);
@@ -123,7 +129,7 @@ class PcapController extends Controller
         $page = max((int) $request->query('page', 1), 1);
         $query = trim($request->query('q', ''));
 
-        $queryBuilder = Packet::where('redis_id', $id);
+        $queryBuilder = Packet::where('analysis_id', $id);
 
         if ($query !== '') {
             $term = "%{$query}%";
@@ -167,7 +173,7 @@ class PcapController extends Controller
     }
 
     /**
-     * Dispatch redis job and log it into db under status 'dispatching'
+     * Dispatch analysis job and log it into db under status 'dispatching'
      */
     private function handleNewJob($rebuiltFileName)
     {
@@ -175,10 +181,11 @@ class PcapController extends Controller
 
         AnalyzePcap::dispatch($uuid, $rebuiltFileName);
 
-        RedisJob::insert([
-            'redis_id' => $uuid,
+        AnalysisJob::insert([
+            'analysis_id' => $uuid,
             'file_path' => $rebuiltFileName,
             'status' => 'dispatching',
+            'l7_status' => 'dispatching'
         ]);
 
         return $uuid;
