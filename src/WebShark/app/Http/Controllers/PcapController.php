@@ -55,7 +55,7 @@ class PcapController extends Controller
                 'message' => $e->getMessage(),
                 'exception' => $e,
             ]);
-            return redirect()->back()->with('error', "There was an error processing your request. Please try again...");
+            return redirect()->back()->with('error', $e->getMessage());
         }
     }
 
@@ -72,7 +72,7 @@ class PcapController extends Controller
         $props = [
             'id' => $id,
             'status' => $status,
-            'l7_status' => $job->l7_status,
+            'l7_status' => $l7_status,
             'progress' => $job->progress_percentage,
             'expires_at' => $job->expires_at
                 ? \Carbon\Carbon::parse($job->expires_at)->diffForHumans(['parts' => 2, 'join' => true])
@@ -139,7 +139,7 @@ class PcapController extends Controller
                 ->orWhere('dst_ip', 'like', $term)
                 ->orWhere('l3_protocol', 'like', $term)
                 ->orWhere('l4_protocol', 'like', $term)
-                ->orWhere('l7_protocol', 'like', $term);
+                ->orWhereRaw("l7_attributes::text ILIKE ?", [$term]);
             });
         }
 
@@ -154,11 +154,15 @@ class PcapController extends Controller
                 'timestamp',
                 'l3_protocol',
                 'l4_protocol',
-                'l7_protocol',
+                'l7_attributes',
                 'src_ip',
                 'dst_ip',
                 'src_port',
                 'dst_port',
+                'tcp_flag',
+                'tcp_window',
+                'tcp_seq_number',
+                'tcp_ack_number',
                 'captured_packet_length',
                 'raw_hex',
             ]);
@@ -185,7 +189,7 @@ class PcapController extends Controller
             'analysis_id' => $uuid,
             'file_path' => $rebuiltFileName,
             'status' => 'dispatching',
-            'l7_status' => 'dispatching'
+            'l7_status' => 'dispatching',
         ]);
 
         return $uuid;

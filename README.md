@@ -125,7 +125,7 @@ sudo docker compose --env-file src/WebShark/.env down
 sudo docker compose --env-file src/WebShark/.env exec db psql -U webshark -d websharkdb -c "SELECT * FROM analysis_job;"
 ```
 
-## To see Redis
+## To see Valkey
 ```bash
 sudo docker compose --env-file src/WebShark/.env exec valkey valkey-cli KEYS "*"
 ```
