@@ -19,48 +19,48 @@ use([
 ])
 
 const props = defineProps({
-    chart_name: String,
+  chart_name: String,
     subtitle: String,
     total_packets: Number,
-    data: Object,   // Expects to contain protocol_name and records
+    data: Object,   // Expected to contain protocol_name and records
 })
 
 const minimum_precentage = 0.01
 const minimum_fields = 3
 
 // If there are more than minimum_fields different fields and 
-// it takes up less than set precentagethreshold aggregate them and display as others
+// it takes up less than set precentage threshold aggregate them and display as others
 const others = computed(() => {
-    var i = 0
-    if(props.data.length > minimum_fields){
-        for(var obj in props.data){
-            if(props.data[obj].records / props.total_packets < minimum_precentage){
-                i+=props.data[obj].records
-            }
-        }
-        return i
-    }
+  var i = 0
+  if(props.data.length > minimum_fields){
+    props.data.forEach(record => {
+      if(record.records / props.total_packets < minimum_precentage){
+        i+=record.records
+      }
+    })
+    return i
+  }
 })
 
 const chartData = computed(() => {
-    var data=[]
-    for(var obj in props.data){
-      if(others.value > 0){
-          if(props.data[obj].records / props.total_packets > minimum_precentage){
-              data.push({ value: props.data[obj].records, name: props.data[obj].protocol_name})
-          }
-      } else {
-          data.push({ value: props.data[obj].records, name: props.data[obj].protocol_name})
-      }
-    }
+  var data=[]
+  props.data.forEach(record => {
     if(others.value > 0){
-        data.push({ value: others.value, name: "Others" })
+      if(record.records / props.total_packets > minimum_precentage){
+        data.push({ value: record.records, name: record.protocol_name})
+      }
+    } else {
+      data.push({ value: record.records, name: record.protocol_name})
     }
-    return data
+  })
+  if(others.value > 0){
+      data.push({ value: others.value, name: "Others" })
+  }
+  return data
 })
 
-const option = ref({
-    title: {
+const pie_chart = ref({
+  title: {
     text: props.chart_name,
     subtext: props.subtitle ? props.subtitle : "",
     left: 'center'
@@ -92,11 +92,11 @@ const option = ref({
 </script>
 
 <template>
-    <VChart :option="option" autoresize class="chart"/>
+  <VChart :option="pie_chart" autoresize class="chart"/>
 </template>
 
 <style scoped>
 .chart {
-    height: 400px;
+  height: 400px;
 }
 </style>

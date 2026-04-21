@@ -87,6 +87,8 @@ class PcapController extends Controller
             'l3_distribution' => null,
             'l4_distribution' => null,
             'l7_distribution' => null,
+            'top_talkers' => null,
+            'size_distribution' => null,
             'first_packet_time' => 0,
             'last_packet_time' => 0,
         ];
@@ -128,6 +130,20 @@ class PcapController extends Controller
             ->where('analysis_id', $id)
             ->whereNotNull('l4_protocol')
             ->groupBy('protocol_name')
+            ->get();
+
+        $props['top_talkers'] = Packet::select('src_ip as IP', DB::raw('count (*) as records'))
+            ->where('analysis_id', $id)
+            ->whereNotNull('src_ip')
+            ->groupBy('IP')
+            ->orderBy('records', 'desc')
+            ->limit(15)
+            ->get();
+
+        $props['size_distribution'] = Packet::select('packet_number', 'captured_packet_length')
+            ->where('analysis_id', $id)
+            ->whereNotNull('captured_packet_length')
+            ->orderBy('packet_number', 'asc')
             ->get();
 
         $lastPacket = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->first();
