@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { router, Head, Link } from '@inertiajs/vue3'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
@@ -16,6 +16,27 @@ const props = defineProps({
     first_packet_time: Number,
     last_packet_time: Number,
     expires_at: String
+})
+
+let expiryInterval = null
+
+function startExpiryPolling() {
+    if (expiryInterval) return
+    expiryInterval = setInterval(() => {
+        router.reload({ only: ['expires_at'] })
+    }, 60_000) // refresh every minute
+}
+
+function stopExpiryPolling() {
+    if (expiryInterval) {
+        clearInterval(expiryInterval)
+        expiryInterval = null
+    }
+}
+
+onUnmounted(() => {
+    stopPolling()
+    stopExpiryPolling()
 })
 
 const showToast = ref(false)
@@ -391,13 +412,16 @@ async function initVirtualList() {
 }
 
 watch(
-    () => props.status,
-    async (newStatus) => {
-        if (newStatus === 'dispatching') {
+    () => [props.status, props.l7_status],
+    async ([newStatus, newL7Status]) => {
+        if (newStatus === 'dispatching' || newL7Status === 'dispatching') {
             startPolling()
         }
         if (newStatus === 'finished') {
-            stopPolling()
+            if (newL7Status !== 'dispatching') {
+                stopPolling()
+                startExpiryPolling()
+            }
             await initVirtualList()
         }
         if (newStatus === 'failed') {
