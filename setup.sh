@@ -63,6 +63,9 @@ sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin dock
 echo "Configuring application..."
 cp src/WebShark/.env.example src/WebShark/.env
 
+echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+
 sudo docker compose --env-file src/WebShark/.env up -d --build
 
 sudo docker exec -it webshark-app composer install
