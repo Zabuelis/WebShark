@@ -56,6 +56,9 @@ const bar_chart = ref({
     },
     xAxis: {
         type: 'value',
+        name: 'Packet Amount',
+        nameLocation: 'center',
+        nameGap: 50
     },
     yAxis: {
         type: 'category',
@@ -65,7 +68,12 @@ const bar_chart = ref({
     series: [
         {
             data: packet_amount.value,
-            type: 'bar'
+            type: 'bar',
+            label: {
+                show: true,
+                position: 'right',
+                distance: 20
+            }
         }
     ]
 })

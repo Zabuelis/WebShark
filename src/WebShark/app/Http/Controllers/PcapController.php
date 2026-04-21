@@ -140,11 +140,11 @@ class PcapController extends Controller
             ->limit(15)
             ->get();
 
-        $props['size_distribution'] = Packet::select('packet_number', 'captured_packet_length')
-            ->where('analysis_id', $id)
-            ->whereNotNull('captured_packet_length')
-            ->orderBy('packet_number', 'asc')
-            ->get();
+        // $props['size_distribution'] = Packet::select('packet_number', 'timestamp')
+        //     ->where('analysis_id', $id)
+        //     ->whereNotNull('timestamp')
+        //     ->orderBy('packet_number', 'asc')
+        //     ->get();
 
         $lastPacket = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->first();
 

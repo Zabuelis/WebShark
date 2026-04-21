@@ -74,7 +74,7 @@ const pie_chart = ref({
   },
   series: [
     {
-      name: 'Access From',
+      name: props.subtitle ? props.subtitle : "",
       type: 'pie',
       radius: '50%',
       data: chartData,

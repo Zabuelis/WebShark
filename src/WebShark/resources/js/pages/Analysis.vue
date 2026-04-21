@@ -22,7 +22,7 @@ const props = defineProps({
     l4_distribution: Object,
     l7_distribution: Object,
     top_talkers: Object,
-    size_distribution: Object,
+    // size_distribution: Object,
 })
 const showToast = ref(false)
 const copyUrl = () => {
@@ -216,7 +216,8 @@ onMounted(() => {
             'l7_distribution', 
             'l3_distribution', 
             'l4_distribution', 
-            'top_talkers'
+            'top_talkers',
+            // 'size_distribution'
         ],
         onSuccess: () => {
           if (props.status !== 'dispatching' && props.l7_status !== 'dispatching') {
@@ -514,11 +515,11 @@ onMounted(() => {
                         </div>
                     </div>
 
-                    <div class="pt-6">
+                    <!-- <div class="pt-6">
                         <div v-if="Object.keys(props.size_distribution).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <PacketSizeScatter chart_name="Packet Size Distribution" :data=props.size_distribution />
+                            <PacketSizeScatter chart_name="Packet Size Distribution" :first_packet_time=props.first_packet_time :data=props.size_distribution />
                         </div>
-                    </div>
+                    </div> -->
 
                 </div>
             </div>
