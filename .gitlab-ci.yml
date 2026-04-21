@@ -4,9 +4,11 @@ stages:
   - deploy
 
 variables:
-  VM_IP: "193.219.91.104"
-  VM_PORT: "9401"
-  APP_URL: "http://${VM_IP}:${VM_PORT}"
+  CI_VM_IP: "193.219.91.104"
+  CI_VM_PORT: "9401"
+  PROD_VM_IP: "193.219.91.103"
+  PROD_VM_PORT: "8000"
+  APP_URL: "http://${PROD_VM_IP}:${PROD_VM_PORT}"
   COMPOSE_CMD: "docker compose --env-file src/WebShark/.env"
   ENV_FILE: "src/WebShark/.env"
 
@@ -20,6 +22,8 @@ variables:
 
 build_images:
   stage: build
+  tags:
+    - ci
   before_script:
     - *env-setup
   script:
@@ -31,6 +35,10 @@ build_images:
 
 run_tests:
   stage: test
+  tags:
+    - ci
+  variables:
+    APP_URL: "http://${CI_VM_IP}:${CI_VM_PORT}"
   before_script:
     - *env-setup
   script:
@@ -51,6 +59,8 @@ run_tests:
 
 deploy_to_production:
   stage: deploy
+  tags:
+    - cd
   environment:
     name: production
     url: $APP_URL
