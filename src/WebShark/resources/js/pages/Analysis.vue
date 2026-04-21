@@ -21,13 +21,47 @@ const props = defineProps({
 const showToast = ref(false)
 
 const copyUrl = () => {
-    navigator.clipboard.writeText(window.location.href)
-        .then(() => {
-            showToast.value = true
-            setTimeout(() => { showToast.value = false }, 2000)
-        })
-        .catch(err => console.error('Failed to copy: ', err))
+    const textToCopy = window.location.href;
+
+    // Try the modern Clipboard API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy)
+            .then(() => {
+                showToast.value = true;
+                setTimeout(() => { showToast.value = false; }, 2000);
+            })
+            .catch(err => console.error('Failed to copy: ', err));
+    } 
+    // Fallback for insecure contexts (HTTP)
+    else {
+        const textArea = document.createElement("textarea");
+        textArea.value = textToCopy;
+        
+        // Ensure the textarea is not visible but part of the DOM
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        
+        textArea.focus();
+        textArea.select();
+
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+                showToast.value = true;
+                setTimeout(() => { showToast.value = false; }, 2000);
+            } else {
+                console.error('Fallback copy command failed');
+            }
+        } catch (err) {
+            console.error('Fallback copy failed: ', err);
+        }
+
+        document.body.removeChild(textArea);
+    }
 }
+
 
 const captureDuration = computed(() => {
     if (!props.first_packet_time || !props.last_packet_time) return "0.00"

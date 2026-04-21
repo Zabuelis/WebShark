@@ -4,7 +4,12 @@ WebShark is a web based network packet analyzer.
 
 Upload a `.pcap` or `.pcapng` files and inspect its packets, protocols and IP flows in your browser.
 
-Built with Laravel, Vue.js, Scapy, PostgreSQL and Valkey.
+Built with Laravel, Vue.js, Python, Scapy, tshark, PostgreSQL and Valkey.
+
+[![Live Demo](https://img.shields.io/badge/Live_Demo-WebShark_CD-007ec6?style=flat-square)](http://193.219.91.104:9401/)
+
+> [!NOTE]
+> Example PCAP files can be found in `src/pcap_samples`
 
 ---
 
@@ -15,7 +20,7 @@ For a debian-based machine, run the following command.
 This script will clone the repository if needed, install Docker and perform all setup steps:
 
 ```bash
-curl -sSL https://git.mif.vu.lt/luse0397/webshark/-/raw/main/setup.sh -o setup.sh && bash setup.sh
+curl -fsSL https://git.mif.vu.lt/luse0397/webshark/-/raw/main/setup.sh | bash
 ```
 
 ## Managing the Application
@@ -32,7 +37,7 @@ make down
 make up
 ```
 
-### Access the UI
+### Access the UI (local machine only)
 ```bash
 http://localhost:8000/
 ```
@@ -115,12 +120,6 @@ http://localhost:8000/
 ```bash
 sudo docker compose --env-file src/WebShark/.env down
 ```
-
----
-
-# Example PCAP files
-
-Example PCAP files can be found in 'src/pcap_samples'
 
 ---
 
