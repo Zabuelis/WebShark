@@ -20,35 +20,32 @@ variables:
 
 build_images:
   stage: build
-  variables:
-    COMPOSE_PROJECT_NAME: "webshark_ci_${CI_PIPELINE_ID}"
   before_script:
     - *env-setup
   script:
     - echo "Building Docker images..."
-    - $COMPOSE_CMD -p $COMPOSE_PROJECT_NAME build
+    - $COMPOSE_CMD build
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == "main"
 
 run_tests:
   stage: test
-  variables:
-    VM_PORT: "9402"
-    COMPOSE_PROJECT_NAME: "webshark_ci_${CI_PIPELINE_ID}"
   before_script:
     - *env-setup
   script:
-    - $COMPOSE_CMD -p $COMPOSE_PROJECT_NAME up -d
+    - $COMPOSE_CMD up -d
     - sleep 10
-    - $COMPOSE_CMD -p $COMPOSE_PROJECT_NAME exec -T app chmod -R 775 storage bootstrap/cache
-    - $COMPOSE_CMD -p $COMPOSE_PROJECT_NAME exec -T app composer install --no-interaction --prefer-dist
-    - $COMPOSE_CMD -p $COMPOSE_PROJECT_NAME run --rm node npm install
-    - $COMPOSE_CMD -p $COMPOSE_PROJECT_NAME exec -T app php artisan key:generate
-    - $COMPOSE_CMD -p $COMPOSE_PROJECT_NAME exec -T app php artisan migrate --force
-    - $COMPOSE_CMD -p $COMPOSE_PROJECT_NAME exec -T app php artisan test
+
+    - docker exec webshark-app chmod -R 775 storage bootstrap/cache
+    - docker exec webshark-app composer install --no-interaction --prefer-dist
+    - $COMPOSE_CMD run --rm node npm install
+
+    - docker exec webshark-app php artisan key:generate
+    - docker exec webshark-app php artisan migrate --force
+    - docker exec webshark-app php artisan test
   after_script:
-    - docker compose --env-file src/WebShark/.env -p webshark_ci_${CI_PIPELINE_ID} down -v
+    - docker compose --env-file src/WebShark/.env down
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
