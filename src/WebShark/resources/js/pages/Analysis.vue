@@ -564,57 +564,59 @@ const formatIP = (ip) => {
                         {{ jumpError }}
                     </div>
 
-                    <div class="overflow-x-auto flex-1 flex flex-col min-w-0">
-                        <!-- Packet headers -->
-                        <div class="packet-row grid gap-x-4 px-6 py-2 bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
-                            <div>ID</div>
-                            <div>Time</div>
-                            <div>Source</div>
-                            <div>Destination</div>
-                            <div>Proto</div>
-                            <div>Len</div>
-                            <div>Info</div>
-                        </div>
+                    <div class="overflow-x-auto flex-1">
+                        <div class="min-w-[1000px] flex flex-col h-full">
+                            <!-- Packet headers -->
+                            <div class="packet-row grid gap-x-4 px-6 py-2 bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
+                                <div>ID</div>
+                                <div>Time</div>
+                                <div>Source</div>
+                                <div>Destination</div>
+                                <div>Proto</div>
+                                <div>Len</div>
+                                <div>Info</div>
+                            </div>
 
-                        <!-- virtual scroll -->
-                        <RecycleScroller
-                            ref="scrollerRef"
-                            class="flex-1"
-                            :items="items"
-                            :item-size="ROW_HEIGHT"
-                            key-field="packet_number"
-                            @scroll="onScroll"
-                        >
-                            <template #default="{ item: packet }">
-                                <div
-                                    @click="handlePacketClick(packet)"
-                                    :class="[
-                                        'packet-row grid gap-x-4 px-6 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono',
-                                        { 'bg-blue-100': selectedPacket === packet },
-                                        { 'opacity-40 cursor-default hover:bg-transparent': packet._placeholder },
-                                        { '!bg-yellow-100': jumpHighlight === packet.packet_number }
-                                    ]"
-                                >
-                                    <div class="text-slate-400">{{ packet.packet_number }}</div>
-                                    <div class="text-slate-500 text-xs">
-                                        {{ packet._placeholder ? 'Loading...' : formatTime(packet.timestamp) + 's' }}
+                            <!-- virtual scroll -->
+                            <RecycleScroller
+                                ref="scrollerRef"
+                                class="flex-1"
+                                :items="items"
+                                :item-size="ROW_HEIGHT"
+                                key-field="packet_number"
+                                @scroll="onScroll"
+                            >
+                                <template #default="{ item: packet }">
+                                    <div
+                                        @click="handlePacketClick(packet)"
+                                        :class="[
+                                            'packet-row grid gap-x-4 px-6 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono',
+                                            { 'bg-blue-100': selectedPacket === packet },
+                                            { 'opacity-40 cursor-default hover:bg-transparent': packet._placeholder },
+                                            { '!bg-yellow-100': jumpHighlight === packet.packet_number }
+                                        ]"
+                                    >
+                                        <div class="text-slate-400">{{ packet.packet_number }}</div>
+                                        <div class="text-slate-500 text-xs">
+                                            {{ packet._placeholder ? 'Loading...' : formatTime(packet.timestamp) + 's' }}
+                                        </div>
+                                        <div class="text-slate-800 font-medium">{{ formatIP(packet.src_ip) }}</div>
+                                        <div class="text-slate-800">{{ formatIP(packet.dst_ip) }}</div>
+                                        <div>
+                                            <span v-if="!packet._placeholder"
+                                                :class="getProtoColor(packet)"
+                                                class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
+                                                {{ highestLevelProtocol(packet) }}
+                                            </span>
+                                        </div>
+                                        <div class="text-slate-500 text-xs">{{ packet.captured_packet_length }}</div>
+                                        <div class="text-slate-600 truncate text-xs italic">
+                                            {{ packet._placeholder ? 'Loading...' : protocolSpecificInformation(packet) }}
+                                        </div>
                                     </div>
-                                    <div class="text-slate-800 font-medium">{{ formatIP(packet.src_ip) }}</div>
-                                    <div class="text-slate-800">{{ formatIP(packet.dst_ip) }}</div>
-                                    <div>
-                                        <span v-if="!packet._placeholder"
-                                            :class="getProtoColor(packet)"
-                                            class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
-                                            {{ highestLevelProtocol(packet) }}
-                                        </span>
-                                    </div>
-                                    <div class="text-slate-500 text-xs">{{ packet.captured_packet_length }}</div>
-                                    <div class="text-slate-600 truncate text-xs italic">
-                                        {{ packet._placeholder ? 'Loading...' : protocolSpecificInformation(packet) }}
-                                    </div>
-                                </div>
-                            </template>
-                        </RecycleScroller>
+                                </template>
+                            </RecycleScroller>
+                        </div>    
                     </div>
 
                     <div class="text-xs text-slate-500 px-4 py-2 border-t border-slate-200 bg-white">
