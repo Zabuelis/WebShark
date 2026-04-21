@@ -32,29 +32,20 @@ build_images:
 run_tests:
   stage: test
   variables:
-    CI_PROJECT_NAME: "webshark-ci-${CI_PIPELINE_ID}"
-    CI_ENV_FILE: "src/WebShark/.env.ci-${CI_PIPELINE_ID}"
-    CI_COMPOSE_CMD: "docker compose --env-file src/WebShark/.env.ci-${CI_PIPELINE_ID} -p webshark-ci-${CI_PIPELINE_ID}"
-    CI_APP_CONTAINER: "webshark-ci-${CI_PIPELINE_ID}-app"
+    COMPOSE_PROJECT_NAME: "webshark-ci-${CI_PIPELINE_ID}"
   before_script:
-    - cp src/WebShark/.env.example $CI_ENV_FILE
-    - sed -i "s/WWWUSER=1000/WWWUSER=$(id -u)/" $CI_ENV_FILE
-    - sed -i "s/WWWGROUP=1000/WWWGROUP=$(id -g)/" $CI_ENV_FILE
-    - sed -i "s|^APP_URL=.*|APP_URL=${APP_URL}|g" $CI_ENV_FILE
-    - sed -i "s|^VITE_APPLICATION_BASE_URL=.*|VITE_APPLICATION_BASE_URL=${APP_URL}|g" $CI_ENV_FILE
-    - sed -i "s|^APP_KEY=.*|APP_KEY=${APP_KEY}|g" $CI_ENV_FILE
+    - *env-setup
   script:
-    - $CI_COMPOSE_CMD up -d --build
+    - $COMPOSE_CMD up -d --build
     - sleep 10
-    - docker exec $CI_APP_CONTAINER chmod -R 775 storage bootstrap/cache
-    - docker exec $CI_APP_CONTAINER composer install --no-interaction --prefer-dist
-    - $CI_COMPOSE_CMD run --rm node npm install
-    - docker exec $CI_APP_CONTAINER php artisan key:generate
-    - docker exec $CI_APP_CONTAINER php artisan migrate --force
-    - docker exec $CI_APP_CONTAINER php artisan test
+    - docker exec webshark-ci-${CI_PIPELINE_ID}-app chmod -R 775 storage bootstrap/cache
+    - docker exec webshark-ci-${CI_PIPELINE_ID}-app composer install --no-interaction --prefer-dist
+    - $COMPOSE_CMD run --rm node npm install
+    - docker exec webshark-ci-${CI_PIPELINE_ID}-app php artisan key:generate
+    - docker exec webshark-ci-${CI_PIPELINE_ID}-app php artisan migrate --force
+    - docker exec webshark-ci-${CI_PIPELINE_ID}-app php artisan test
   after_script:
-    - docker compose --env-file src/WebShark/.env.ci-${CI_PIPELINE_ID} -p webshark-ci-${CI_PIPELINE_ID} down -v
-    - rm -f src/WebShark/.env.ci-${CI_PIPELINE_ID}
+    - $COMPOSE_CMD down -v
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
