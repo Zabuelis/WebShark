@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { router, Head, Link } from '@inertiajs/vue3'
 import NavBar from '../components/NavBar.vue'
-import Footer from '../components/Footere.vue'
+import Footer from '../components/Footer.vue'
 
 const props = defineProps({
     packets: Object,
@@ -14,9 +14,11 @@ const props = defineProps({
     total_bytes: Number,
     first_packet_time: Number,
     last_packet_time: Number,
-    expires_at: String
+    expires_at: String,
+    l3_distribution: Object,
+    l4_distribution: Object,
+    l7_distribution: Object,
 })
-
 const showToast = ref(false)
 
 const copyUrl = () => {
@@ -194,7 +196,7 @@ onMounted(() => {
   if (props.status === 'dispatching') {
     const interval = setInterval(() => {
       router.reload({ 
-        only: ['packets', 'l7_status', 'status', 'message', 'total_bytes', 'id', 'first_packet_time', 'last_packet_time', 'progress', 'expires_at'],
+        only: ['packets', 'l7_status', 'status', 'message', 'total_bytes', 'id', 'first_packet_time', 'last_packet_time', 'progress', 'expires_at', 'l7_distribution', 'l3_distribution', 'l4_distribution'],
         onSuccess: () => {
           if (props.status !== 'dispatching' && props.l7_status !== 'dispatching') {
             clearInterval(interval)

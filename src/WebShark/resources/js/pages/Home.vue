@@ -2,7 +2,7 @@
     import { ref } from 'vue'
     import { Head, useForm, usePage } from '@inertiajs/vue3'
     import NavBar from '../components/NavBar.vue'
-    import Footer from '../components/Footere.vue'
+    import Footer from '../components/Footer.vue'
 
     // Information related to the page that comes from inertia (flash messages, csfr_token, etc.)
     const pageMessages = usePage()
@@ -139,6 +139,6 @@
             </ul>
         </div>
 
-        <Footer />
     </div>
+    <Footer />
 </template>

@@ -9,6 +9,7 @@ use App\Models\Packet;
 use App\Jobs\AnalyzePcap;
 use App\Models\IpMarker;
 use Exception;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -83,6 +84,9 @@ class PcapController extends Controller
             'message' => '',
             'packets' => null,
             'total_bytes' => 0,
+            'l3_distribution' => null,
+            'l4_distribution' => null,
+            'l7_distribution' => null,
             'first_packet_time' => 0,
             'last_packet_time' => 0,
         ];
@@ -114,11 +118,31 @@ class PcapController extends Controller
                                ->orderBy('packet_number', 'asc')
                                ->first();
 
+        $props['l3_distribution'] = Packet::select('l3_protocol as protocol_name',  DB::raw('count (*) as records'))
+            ->where('analysis_id', $id)
+            ->whereNotNull('l3_protocol')
+            ->groupBy('protocol_name')
+            ->get();
+
+        $props['l4_distribution'] = Packet::select('l4_protocol as protocol_name',  DB::raw('count (*) as records'))
+            ->where('analysis_id', $id)
+            ->whereNotNull('l4_protocol')
+            ->groupBy('protocol_name')
+            ->get();
+
         $lastPacket = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->first();
 
         $props['first_packet_time'] = $firstPacket ? (float) $firstPacket->timestamp : 0;
 
         $props['last_packet_time'] = $lastPacket ? (float) $lastPacket->timestamp : 0;
+
+        if ($l7_status === 'finished'){
+            $props['l7_distribution'] = Packet::select(DB::raw("l7_attributes->>'Protocol' as protocol_name"), DB::raw('count (*) as records'))
+                ->where('analysis_id', $id)
+                ->whereRaw("l7_attributes->>'Protocol' IS NOT NULL")
+                ->groupBy('protocol_name')
+                ->get();
+        }
 
         return Inertia::render('Analysis', $props);
     }

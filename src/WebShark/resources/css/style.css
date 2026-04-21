@@ -99,6 +99,9 @@
     border-color: #cbd5e1;
 }
 
+/* Footer */
+
 .footer{
-    height: 300px;
+    height: 75px;
+    background-color: #ffffffff;
 }

@@ -3,5 +3,5 @@
 </script>
 
 <template>
-    <div class="footer"></div>
+    <div class="footer border-t-2"></div>
 </template>
