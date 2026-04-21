@@ -90,7 +90,7 @@ const detailSections = computed(() => {
             ]
         },
         {
-            title: "Network",
+            title: "Network Layer",
             fields: [
                 { label: "L3 Protocol", value: p.l3_protocol },
                 { label: "Source IP", value: p.src_ip },
@@ -98,7 +98,7 @@ const detailSections = computed(() => {
             ]
         },
         {
-            title: "Transport",
+            title: "Transport Layer",
             fields: [
                 { label: "L4 Protocol", value: p.l4_protocol },
                 { label: "Source Port", value: p.src_port },
@@ -114,10 +114,8 @@ const detailSections = computed(() => {
             ]
         },
         {
-            title: "Application",
+            title: "Application Layer",
             fields: [
-                { label: "L7 Protocol", value: p.l7_protocol },
-                { label: "Info", value: p.info },
 
                 // Dynamic L7 attributes when present
                 ...(p.l7_attributes
@@ -408,6 +406,14 @@ watch(
     },
     { immediate: true }
 )
+
+const formatIP = (ip) => {
+    if (!ip || !ip.includes(':')) return ip  // IPv4, return as-is
+    const parts = ip.split(':')
+    if (parts.length <= 4) return ip  // Short enough already
+    return `${parts[0]}:${parts[1]}:…:${parts[parts.length - 2]}:${parts[parts.length - 1]}`
+}
+
 </script>
 
 
@@ -505,7 +511,7 @@ watch(
             <template v-if="activeTab === 'packets'">
 
                 <!-- The left side -->
-                <main class="flex-1 flex flex-col overflow-hidden border-r border-slate-200">
+                <main class="flex-1 flex flex-col overflow-hidden border-r border-slate-200 min-w-0">
 
                     <!-- Toolbar -->
                     <div class="p-3 bg-white border-b border-slate-200 flex gap-2">
@@ -558,56 +564,58 @@ watch(
                         {{ jumpError }}
                     </div>
 
-                    <!-- Packet headers -->
-                    <div class="packet-row grid gap-x-4 px-6 py-2 bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
-                        <div>ID</div>
-                        <div>Time</div>
-                        <div>Source</div>
-                        <div>Destination</div>
-                        <div>Proto</div>
-                        <div>Len</div>
-                        <div>Info</div>
-                    </div>
+                    <div class="overflow-x-auto flex-1 flex flex-col min-w-0">
+                        <!-- Packet headers -->
+                        <div class="packet-row grid gap-x-4 px-6 py-2 bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
+                            <div>ID</div>
+                            <div>Time</div>
+                            <div>Source</div>
+                            <div>Destination</div>
+                            <div>Proto</div>
+                            <div>Len</div>
+                            <div>Info</div>
+                        </div>
 
-                    <!-- virtual scroll -->
-                    <RecycleScroller
-                        ref="scrollerRef"
-                        class="flex-1"
-                        :items="items"
-                        :item-size="ROW_HEIGHT"
-                        key-field="packet_number"
-                        @scroll="onScroll"
-                    >
-                        <template #default="{ item: packet }">
-                            <div
-                                @click="handlePacketClick(packet)"
-                                :class="[
-                                    'packet-row grid gap-x-4 px-6 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono',
-                                    { 'bg-blue-100': selectedPacket === packet },
-                                    { 'opacity-40 cursor-default hover:bg-transparent': packet._placeholder },
-                                    { '!bg-yellow-100': jumpHighlight === packet.packet_number }
-                                ]"
-                            >
-                                <div class="text-slate-400">{{ packet.packet_number }}</div>
-                                <div class="text-slate-500 text-xs">
-                                    {{ packet._placeholder ? 'Loading...' : formatTime(packet.timestamp) + 's' }}
+                        <!-- virtual scroll -->
+                        <RecycleScroller
+                            ref="scrollerRef"
+                            class="flex-1"
+                            :items="items"
+                            :item-size="ROW_HEIGHT"
+                            key-field="packet_number"
+                            @scroll="onScroll"
+                        >
+                            <template #default="{ item: packet }">
+                                <div
+                                    @click="handlePacketClick(packet)"
+                                    :class="[
+                                        'packet-row grid gap-x-4 px-6 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono',
+                                        { 'bg-blue-100': selectedPacket === packet },
+                                        { 'opacity-40 cursor-default hover:bg-transparent': packet._placeholder },
+                                        { '!bg-yellow-100': jumpHighlight === packet.packet_number }
+                                    ]"
+                                >
+                                    <div class="text-slate-400">{{ packet.packet_number }}</div>
+                                    <div class="text-slate-500 text-xs">
+                                        {{ packet._placeholder ? 'Loading...' : formatTime(packet.timestamp) + 's' }}
+                                    </div>
+                                    <div class="text-slate-800 font-medium">{{ formatIP(packet.src_ip) }}</div>
+                                    <div class="text-slate-800">{{ formatIP(packet.dst_ip) }}</div>
+                                    <div>
+                                        <span v-if="!packet._placeholder"
+                                            :class="getProtoColor(packet)"
+                                            class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
+                                            {{ highestLevelProtocol(packet) }}
+                                        </span>
+                                    </div>
+                                    <div class="text-slate-500 text-xs">{{ packet.captured_packet_length }}</div>
+                                    <div class="text-slate-600 truncate text-xs italic">
+                                        {{ packet._placeholder ? 'Loading...' : protocolSpecificInformation(packet) }}
+                                    </div>
                                 </div>
-                                <div class="text-slate-800 font-medium">{{ packet.src_ip }}</div>
-                                <div class="text-slate-800">{{ packet.dst_ip }}</div>
-                                <div>
-                                    <span v-if="!packet._placeholder"
-                                        :class="getProtoColor(packet)"
-                                        class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
-                                        {{ highestLevelProtocol(packet) }}
-                                    </span>
-                                </div>
-                                <div class="text-slate-500 text-xs">{{ packet.captured_packet_length }}</div>
-                                <div class="text-slate-600 truncate text-xs italic">
-                                    {{ packet._placeholder ? 'Loading...' : protocolSpecificInformation(packet) }}
-                                </div>
-                            </div>
-                        </template>
-                    </RecycleScroller>
+                            </template>
+                        </RecycleScroller>
+                    </div>
 
                     <div class="text-xs text-slate-500 px-4 py-2 border-t border-slate-200 bg-white">
 
@@ -750,6 +758,6 @@ watch(
 <style scoped>
 .packet-row {
     height: 36px;
-    grid-template-columns: minmax(60px,0.5fr) minmax(90px,0.8fr) minmax(140px,1.2fr) minmax(140px,1.2fr) 80px 70px 2fr;
+    grid-template-columns: minmax(60px,0.5fr) minmax(90px,0.8fr) minmax(160px,1.5fr) minmax(160px,1.5fr) 80px 70px 2fr;
 }
 </style>
