@@ -25,7 +25,7 @@ use([GridComponent, BarChart, CanvasRenderer])
 const props = defineProps({
     chart_name: String,
     subtitle: String,
-    data: Object,
+    data: Object,   // Expected to contain ip_addresses as IP and packet amount as records
 })
 
 function compute_packet_amount(){
@@ -72,7 +72,6 @@ const bar_chart = ref({
             label: {
                 show: true,
                 position: 'right',
-                distance: 20
             }
         }
     ]

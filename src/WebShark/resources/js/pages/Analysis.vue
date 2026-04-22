@@ -494,22 +494,22 @@ onMounted(() => {
                     <!-- Protocol distribution PieCharts -->
                     <div class="grid grid-cols-1 pt-6 md:grid-cols-3 gap-6">
                         <div v-if="Object.keys(props.l3_distribution).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <ProtocolDistributionPieChart chart_name="Network Layer" subtitle="Network Layer Protocol Distribution" :total_packets=props.packets.total :data=props.l3_distribution />
+                            <ProtocolDistributionPieChart chart_name="Network Layer" subtitle="Network Layer Protocol Distribution" :total_packets="props.packets.total" :data="props.l3_distribution" />
                         </div>
 
                         <div v-if="Object.keys(props.l4_distribution).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <ProtocolDistributionPieChart chart_name="Transport Layer" subtitle="Transport Layer Protocol Distribution" :total_packets=props.packets.total :data=props.l4_distribution />
+                            <ProtocolDistributionPieChart chart_name="Transport Layer" subtitle="Transport Layer Protocol Distribution" :total_packets="props.packets.total" :data="props.l4_distribution" />
                         </div>
 
                         <div v-if="Object.keys(props.l7_distribution).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <ProtocolDistributionPieChart chart_name="Application Layer" subtitle="Application Layer Protocol Distribution" :total_packets=props.packets.total :data=props.l7_distribution />
+                            <ProtocolDistributionPieChart chart_name="Application Layer" subtitle="Application Layer Protocol Distribution" :total_packets="props.packets.total" :data="props.l7_distribution" />
                         </div>
                     </div>
 
                     <!-- Hosts with most packets sent histogram -->
                     <div class="pt-6">
                         <div v-if="Object.keys(props.top_talkers).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <TopTalkersBarChart chart_name="Top Talkers" subtitle="Hosts who sent the most Packets" :data=props.top_talkers></TopTalkersBarChart>
+                            <TopTalkersBarChart chart_name="Top Talkers" subtitle="Hosts who Sent the Most Packets" :data="props.top_talkers"></TopTalkersBarChart>
                         </div>
                     </div>
 

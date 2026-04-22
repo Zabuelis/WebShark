@@ -13,7 +13,7 @@ const props = defineProps({
     subtitle: String,
     bucket_size: Number,
     bucket_amount: Number,
-    data: Object,
+    data: Object,   // Expected to contain packet_amount and buckets as packet_size (size ranges)
 })
 
 const difference = props.bucket_size / props.bucket_amount
