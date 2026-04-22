@@ -16,7 +16,8 @@ RUN apt-get update && apt-get install -y \
     autoconf \
     gcc \
     make \
-    g++
+    g++ \
+    tshark
 
 # Clean cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*

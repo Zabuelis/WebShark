@@ -25,4 +25,12 @@ Route::get('/pcap/analysis/{id}', [PcapController::class, 'show'])
     ->middleware('analysis.exists')
     ->name('pcap.status');
 
+Route::get('/pcap/analysis/{id}/packets', [PcapController::class, 'packets'])
+    ->middleware('analysis.exists')
+    ->name('pcap.packets');
+
+Route::get('/pcap/analysis/{id}/search', [PcapController::class, 'search'])
+    ->middleware('analysis.exists')
+    ->name('pcap.search');
+
 require __DIR__ . '/settings.php';

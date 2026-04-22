@@ -13,23 +13,26 @@ return new class extends Migration
     {
         Schema::create('packet', function (Blueprint $table) {
             $table->id('packet_id');
-            $table->uuid('redis_id');
+            $table->uuid('analysis_id');
             $table->integer('packet_number');
             $table->string('l3_protocol')->nullable(true);
             $table->string('l4_protocol')->nullable(true);
-            $table->string('l7_protocol')->nullable(true);
             $table->string('src_ip')->nullable(true);
             $table->string('dst_ip')->nullable(true);
             $table->integer('src_port')->nullable(true);
             $table->integer('dst_port')->nullable(true);
             $table->string('tcp_flag')->nullable(true);
             $table->integer('tcp_window')->nullable(true);
+            $table->bigInteger('tcp_ack_number')->nullable(true);
+            $table->bigInteger('tcp_seq_number')->nullable(true);
             $table->integer('original_packet_length')->nullable(true);
             $table->integer('captured_packet_length')->nullable(true);
+            $table->jsonb('l7_attributes')->nullable(true);
             $table->decimal('timestamp', 20, 6)->nullable();
             $table->text('raw_hex')->nullable();
             
-            $table->foreign('redis_id')->references('redis_id')->on('redis_job')->onDelete('cascade');
+            $table->foreign('analysis_id')->references('analysis_id')->on('analysis_job')->onDelete('cascade');
+            $table->index(['analysis_id', 'packet_number']);
         });
     }
 
