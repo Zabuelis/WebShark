@@ -120,18 +120,21 @@ class PcapController extends Controller
                                ->orderBy('packet_number', 'asc')
                                ->first();
 
+        // L3 protocol distribution based on amount of packets containing L3 data
         $props['l3_distribution'] = Packet::select('l3_protocol as protocol_name',  DB::raw('count (*) as records'))
             ->where('analysis_id', $id)
             ->whereNotNull('l3_protocol')
             ->groupBy('protocol_name')
             ->get();
 
+        // L4 protocol distribution based on amount of packets containing L4 data
         $props['l4_distribution'] = Packet::select('l4_protocol as protocol_name',  DB::raw('count (*) as records'))
             ->where('analysis_id', $id)
             ->whereNotNull('l4_protocol')
             ->groupBy('protocol_name')
             ->get();
 
+        // 15 IP addresses with highest amount of packets sent
         $props['top_talkers'] = Packet::select('src_ip as IP', DB::raw('count (*) as records'))
             ->where('analysis_id', $id)
             ->whereNotNull('src_ip')
@@ -140,11 +143,13 @@ class PcapController extends Controller
             ->limit(15)
             ->get();
 
-        // $props['size_distribution'] = Packet::select('packet_number', 'timestamp')
-        //     ->where('analysis_id', $id)
-        //     ->whereNotNull('timestamp')
-        //     ->orderBy('packet_number', 'asc')
-        //     ->get();
+        // Create 10 buckets of sizes (0 - 1500)
+        $props['size_distribution'] = Packet::select(DB::raw('count (*) as packet_amount'), DB::raw('width_bucket(captured_packet_length, 0, 1501, 10) as packet_size'))
+            ->where('analysis_id', $id)
+            ->whereNotNull('captured_packet_length')
+            ->groupBy('packet_size')
+            ->orderBy('packet_size', 'desc')
+            ->get();
 
         $lastPacket = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->first();
 
@@ -153,6 +158,7 @@ class PcapController extends Controller
         $props['last_packet_time'] = $lastPacket ? (float) $lastPacket->timestamp : 0;
 
         if ($l7_status === 'finished'){
+            // L7 protocol distribution based on amount of packets containing L7 data
             $props['l7_distribution'] = Packet::select(DB::raw("l7_attributes->>'Protocol' as protocol_name"), DB::raw('count (*) as records'))
                 ->where('analysis_id', $id)
                 ->whereRaw("l7_attributes->>'Protocol' IS NOT NULL")
@@ -170,14 +176,14 @@ class PcapController extends Controller
     {
         $uuid = (string) Str::uuid();
 
-        AnalyzePcap::dispatch($uuid, $rebuiltFileName);
-
         AnalysisJob::insert([
             'analysis_id' => $uuid,
             'file_path' => $rebuiltFileName,
             'status' => 'dispatching',
             'l7_status' => 'dispatching'
         ]);
+
+        AnalyzePcap::dispatch($uuid, $rebuiltFileName);
 
         return $uuid;
     }

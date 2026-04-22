@@ -5,7 +5,7 @@ import NavBar from '../components/NavBar.vue'
 import Footer from '../components/Footer.vue'
 import ProtocolDistributionPieChart from '@/components/ProtocolDistributionPieChart.vue'
 import TopTalkersBarChart from '@/components/TopTalkersBarChart.vue'
-import PacketSizeScatter from '@/components/PacketSizeScatter.vue'
+import PacketSizeHistogram from '@/components/PacketSizeHistogram.vue'
 
 const props = defineProps({
     packets: Object,
@@ -22,7 +22,7 @@ const props = defineProps({
     l4_distribution: Object,
     l7_distribution: Object,
     top_talkers: Object,
-    // size_distribution: Object,
+    size_distribution: Object,
 })
 const showToast = ref(false)
 const copyUrl = () => {
@@ -35,8 +35,6 @@ const copyUrl = () => {
         })
         .catch(err => console.error('Failed to copy: ', err));
 }
-
-console.log(props.packets)
 
 const captureDuration = computed(() => {
   if (!props.first_packet_time || !props.last_packet_time) return "0.00"
@@ -217,7 +215,7 @@ onMounted(() => {
             'l3_distribution', 
             'l4_distribution', 
             'top_talkers',
-            // 'size_distribution'
+            'size_distribution'
         ],
         onSuccess: () => {
           if (props.status !== 'dispatching' && props.l7_status !== 'dispatching') {
@@ -508,18 +506,19 @@ onMounted(() => {
                         </div>
                     </div>
 
-                    <!-- Hosts with most packets sent -->
+                    <!-- Hosts with most packets sent histogram -->
                     <div class="pt-6">
                         <div v-if="Object.keys(props.top_talkers).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                             <TopTalkersBarChart chart_name="Top Talkers" subtitle="Hosts who sent the most Packets" :data=props.top_talkers></TopTalkersBarChart>
                         </div>
                     </div>
 
-                    <!-- <div class="pt-6">
+                    <!-- Packet size distribution histogram -->
+                    <div class="pt-6">
                         <div v-if="Object.keys(props.size_distribution).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <PacketSizeScatter chart_name="Packet Size Distribution" :first_packet_time=props.first_packet_time :data=props.size_distribution />
+                            <PacketSizeHistogram chart_name="Packet Size Distribution" :first_packet_time="props.first_packet_time" :data="props.size_distribution" :bucket_amount="10" :bucket_size="1500" />
                         </div>
-                    </div> -->
+                    </div>
 
                 </div>
             </div>

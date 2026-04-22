@@ -20,7 +20,6 @@ use([
   CanvasRenderer
 ])
 
-
 use([GridComponent, BarChart, CanvasRenderer])
 
 const props = defineProps({
@@ -29,24 +28,25 @@ const props = defineProps({
     data: Object,
 })
 
-const packet_amount = computed(() => {
+function compute_packet_amount(){
     var data = []
     props.data.forEach(record => {
         data.push(record.records)
     })
     return data
-})
+}
 
-const IP_addresses = computed(() => {
+function compute_IP_addresses(){
     var data = []
     props.data.forEach(record => {
         data.push(record.IP)
     })
     return data
-})
+}
 
-console.log(IP_addresses.value)
-console
+const packet_amount = compute_packet_amount()
+
+const IP_addresses = compute_IP_addresses()
 
 const bar_chart = ref({
     title: {
@@ -56,18 +56,18 @@ const bar_chart = ref({
     },
     xAxis: {
         type: 'value',
-        name: 'Packet Amount',
+        name: 'Amount',
         nameLocation: 'center',
         nameGap: 50
     },
     yAxis: {
         type: 'category',
-        data: IP_addresses.value,
+        data: IP_addresses,
         inverse: true
     },
     series: [
         {
-            data: packet_amount.value,
+            data: packet_amount,
             type: 'bar',
             label: {
                 show: true,
