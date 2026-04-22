@@ -10,12 +10,12 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans antialiased">
-        <div class="flex flex-col items-center justify-center h-screen bg-slate-900 text-white">
+        <div class="flex flex-col items-center justify-center h-screen text-white">
             <!-- 404 Header -->
-            <h1 class="text-slate-400 mt-2 text-8xl font-bold">404</h1>
+            <h1 class="text-slate-800 mt-2 text-8xl font-bold">404</h1>
             
             <div class="relative z-10 flex flex-col items-center">
-                <p class="text-slate-400 mt-2 text-lg">
+                <p class="text-slate-800 mt-2 text-lg">
                     {{ __("Sorry, the page you are looking for could not be found.") }}
                 </p>
                 

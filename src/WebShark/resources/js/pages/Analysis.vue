@@ -430,6 +430,10 @@ watch(
         }
         if (newStatus === 'finished') {
             if (newL7Status !== 'dispatching') {
+                if(newL7Status === 'finished'){
+                    resetStore()
+                    await initVirtualList()
+                }
                 stopPolling()
                 startExpiryPolling()
             }

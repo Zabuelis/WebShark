@@ -3,6 +3,7 @@ import os
 import psycopg2
 import psycopg2.extras
 import json
+from time import sleep
 from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP
 import subprocess
 from analyzer_modules import *
@@ -443,6 +444,9 @@ try:
         "UPDATE analysis_job SET progress_percentage = 100 WHERE analysis_id = %s", 
         (analysis_id,)
     )
+    conn.commit()
+    # Slight delay, so 100% completion appears in the UI
+    sleep(0.5)
     cursor.execute(
         "UPDATE analysis_job SET status = %s WHERE analysis_id = %s", 
         ("finished", analysis_id)

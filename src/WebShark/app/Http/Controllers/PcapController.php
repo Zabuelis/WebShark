@@ -183,13 +183,13 @@ class PcapController extends Controller
 
         if ($query !== '') {
             $term = "%{$query}%";
-
+    
             $queryBuilder->where(function ($q) use ($term) {
                 $q->where('src_ip', 'like', $term)
                 ->orWhere('dst_ip', 'like', $term)
                 ->orWhere('l3_protocol', 'like', $term)
                 ->orWhere('l4_protocol', 'like', $term)
-                ->orWhereRaw("l7_attributes::text ILIKE ?", [$term]);
+                ->orWhereRaw("l7_attributes->>'Protocol' LIKE '{$term}'");
             });
         }
 
