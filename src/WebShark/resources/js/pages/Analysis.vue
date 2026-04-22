@@ -765,15 +765,15 @@ const formatIP = (ip) => {
                     <!-- Protocol distribution PieCharts -->
                     <div class="grid grid-cols-1 pt-6 md:grid-cols-3 gap-6">
                         <div v-if="Object.keys(props.l3_distribution).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <ProtocolDistributionPieChart chart_name="Network Layer" subtitle="Network Layer Protocol Distribution" :total_packets="props.total_packets" :data="props.l3_distribution" />
+                            <ProtocolDistributionPieChart chart_name="Network Layer" subtitle="Network Layer Protocol Distribution" :data="props.l3_distribution" />
                         </div>
 
                         <div v-if="Object.keys(props.l4_distribution).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <ProtocolDistributionPieChart chart_name="Transport Layer" subtitle="Transport Layer Protocol Distribution" :total_packets="props.total_packets" :data="props.l4_distribution" />
+                            <ProtocolDistributionPieChart chart_name="Transport Layer" subtitle="Transport Layer Protocol Distribution" :data="props.l4_distribution" />
                         </div>
 
                         <div v-if="Object.keys(props.l7_distribution).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <ProtocolDistributionPieChart chart_name="Application Layer" subtitle="Application Layer Protocol Distribution" :total_packets="props.total_packets" :data="props.l7_distribution" />
+                            <ProtocolDistributionPieChart chart_name="Application Layer" subtitle="Application Layer Protocol Distribution" :data="props.l7_distribution" />
                         </div>
                     </div>
 

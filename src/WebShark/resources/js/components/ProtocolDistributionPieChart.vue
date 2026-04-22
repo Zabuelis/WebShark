@@ -21,22 +21,29 @@ use([
 const props = defineProps({
 	chart_name: String,
 	subtitle: String,
-	total_packets: Number,
 	data: Object,   // Expected to contain protocol_name and records
 })
 
 const minimum_precentage = 0.01
 const minimum_fields = 3
 
-// others and chartData should be kept computed(reactive) as L7 data updates not all at once especially with bigger files.
+// others, total_records and chartData should be kept computed(reactive) as L7 data updates not all at once especially with bigger files.
 
 // If there are more than minimum_fields different fields and 
 // it takes up less than set precentage threshold aggregate them and display as others
+const total_records = computed(() => {
+	var i = 0
+	props.data.forEach(record => {
+		i += record.records
+	})
+	return i
+})
+
 const others = computed(() => {
 	var i = 0
 	if(props.data.length > minimum_fields){
 		props.data.forEach(record => {
-		if(record.records / props.total_packets < minimum_precentage){
+		if(record.records / total_records.value < minimum_precentage){
 			i+=record.records
 		}
 		})
@@ -47,13 +54,13 @@ const others = computed(() => {
 const chartData = computed(() => {
 	var data=[]
 	props.data.forEach(record => {
-	if(others.value > 0){
-		if(record.records / props.total_packets > minimum_precentage){
+		if(others.value > 0){
+			if(record.records / total_records.value > minimum_precentage){
+				data.push({ value: record.records, name: record.protocol_name})
+			}
+		} else {
 			data.push({ value: record.records, name: record.protocol_name})
-      	}
-	} else {	
-      data.push({ value: record.records, name: record.protocol_name})
-    }
+		}
 	})
   	if(others.value > 0){
 		data.push({ value: others.value, name: "Others" })
