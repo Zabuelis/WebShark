@@ -4,9 +4,11 @@ stages:
   - deploy
 
 variables:
-  VM_IP: "193.219.91.104"
-  VM_PORT: "9401"
-  APP_URL: "http://${VM_IP}:${VM_PORT}"
+  CI_VM_IP: "193.219.91.104"
+  CI_VM_PORT: "9401"
+  PROD_VM_IP: "193.219.91.103"
+  PROD_VM_PORT: "8000"
+  APP_URL: "http://${PROD_VM_IP}:${PROD_VM_PORT}"
   COMPOSE_CMD: "docker compose --env-file src/WebShark/.env"
   ENV_FILE: "src/WebShark/.env"
 
@@ -16,9 +18,12 @@ variables:
   - sed -i "s/WWWGROUP=1000/WWWGROUP=$(id -g)/" $ENV_FILE
   - sed -i "s|^APP_URL=.*|APP_URL=${APP_URL}|g" $ENV_FILE
   - sed -i "s|^VITE_APPLICATION_BASE_URL=.*|VITE_APPLICATION_BASE_URL=${APP_URL}|g" $ENV_FILE
+  - sed -i "s|^APP_KEY=.*|APP_KEY=${APP_KEY}|g" $ENV_FILE
 
 build_images:
   stage: build
+  tags:
+    - ci
   before_script:
     - *env-setup
   script:
@@ -30,6 +35,10 @@ build_images:
 
 run_tests:
   stage: test
+  tags:
+    - ci
+  variables:
+    APP_URL: "http://${CI_VM_IP}:${CI_VM_PORT}"
   before_script:
     - *env-setup
   script:
@@ -50,28 +59,32 @@ run_tests:
 
 deploy_to_production:
   stage: deploy
-  environment: production
+  tags:
+    - cd
+  environment:
+    name: production
+    url: $APP_URL
   before_script:
     - *env-setup
   script:
     - echo "Deploying WebShark to ${APP_URL}..."
+    - $COMPOSE_CMD down --remove-orphans
+
     - $COMPOSE_CMD up -d --build
-    
-    - echo "Building frontend assets..."
-    - $COMPOSE_CMD run --rm node npm install
-    - $COMPOSE_CMD run --rm node npm run build
-    
+    - sleep 5
+
     - docker exec webshark-app composer install --no-interaction --optimize-autoloader --no-dev
     - docker exec webshark-app chmod -R 775 storage bootstrap/cache
-    - docker exec webshark-app php artisan key:generate --force
     - docker exec webshark-app php artisan storage:link || echo "Already linked"
     - docker exec webshark-app php artisan migrate --force
+
+    - $COMPOSE_CMD run --rm node npm install
+    - $COMPOSE_CMD run --rm node npm run build
+
     - docker exec webshark-app php artisan config:cache
     - docker exec webshark-app php artisan route:cache
     - docker exec webshark-app php artisan view:cache
 
-    - docker stop webshark-node || true
-    
     - echo "Application is LIVE at ${APP_URL}"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"

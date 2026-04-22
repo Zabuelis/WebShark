@@ -12,7 +12,6 @@ use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -21,8 +20,7 @@ class PcapController extends Controller
     // Upload a file and create a job for analysis
     public function create(Request $request)
     {
-        $validated = $request->validate([
-            // Now the file size is limited to 10 mb
+        $request->validate([
             'pcap_file' => 'required|file|max:10240',
         ]);
 
@@ -59,11 +57,14 @@ class PcapController extends Controller
                 'message' => $e->getMessage(),
                 'exception' => $e,
             ]);
-            return redirect()->back()->with('error', "There was an error processing your request. Please try again...");
+            return redirect()->back()->with('error', $e->getMessage());
         }
     }
 
-    public function show(String $id)
+    /**
+     * Only passes metadata — packets are fetched separately with packets()
+     */
+    public function show(string $id)
     {
         $job = AnalysisJob::where('analysis_id', $id)->firstOrFail();
         $status = $job->status;
@@ -73,16 +74,14 @@ class PcapController extends Controller
         $props = [
             'id' => $id,
             'status' => $status,
-            'l7_status' => $job->l7_status,
+            'l7_status' => $l7_status,
             'progress' => $job->progress_percentage,
-            'expires_at' => $job->expires_at 
-            ? \Carbon\Carbon::parse($job->expires_at)->diffForHumans([
-                'parts' => 2,
-                'join' => true,
-            ]) 
-            : null,
-            'message' => '',
-            'packets' => null,
+            'expires_at' => $job->expires_at
+                ? \Carbon\Carbon::parse($job->expires_at)->diffForHumans(['parts' => 2, 'join' => true])
+                : null,
+            'message'  => '',
+
+            // Metadata used by the Overview tab and time formatting
             'total_bytes' => 0,
             'l3_distribution' => null,
             'l4_distribution' => null,
@@ -91,6 +90,7 @@ class PcapController extends Controller
             'size_distribution' => null,
             'first_packet_time' => 0,
             'last_packet_time' => 0,
+            'total_packets' => 0,
         ];
 
         // Check the status of the job
@@ -100,7 +100,7 @@ class PcapController extends Controller
         }
 
         if ($status === 'failed') {
-            $props['message'] = $job->error_message ?? 'Analysis failed due to an system error. Error code: 3';
+            $props['message'] = $job->error_message ?? 'Analysis failed due to a system error. Error code: 3';
             return Inertia::render('Analysis', $props);
         }
 
@@ -109,16 +109,11 @@ class PcapController extends Controller
         }
 
         // If we are here, everything went well
-        $props['packets'] = Packet::where('analysis_id', $id)
-                                    ->orderBy('packet_number', 'asc')
-                                    ->paginate(20);
-        
-        $props['total_bytes'] = (int) Packet::where('analysis_id', $id)
-                                            ->sum('captured_packet_length');
+        $props['total_packets'] = Packet::where('analysis_id', $id)->count();
+        $props['total_bytes']   = (int) Packet::where('analysis_id', $id)->sum('captured_packet_length');
 
-        $firstPacket = Packet::where('analysis_id', $id)
-                               ->orderBy('packet_number', 'asc')
-                               ->first();
+        $first = Packet::where('analysis_id', $id)->orderBy('packet_number', 'asc')->value('timestamp');
+        $last  = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->value('timestamp');
 
         // L3 protocol distribution based on amount of packets containing L3 data
         $props['l3_distribution'] = Packet::select('l3_protocol as protocol_name',  DB::raw('count (*) as records'))
@@ -153,9 +148,9 @@ class PcapController extends Controller
 
         $lastPacket = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->first();
 
-        $props['first_packet_time'] = $firstPacket ? (float) $firstPacket->timestamp : 0;
+        $props['first_packet_time'] = $first ? (float) $first : 0;
+        $props['last_packet_time']  = $last  ? (float) $last  : 0;
 
-        $props['last_packet_time'] = $lastPacket ? (float) $lastPacket->timestamp : 0;
 
         if ($l7_status === 'finished'){
             // L7 protocol distribution based on amount of packets containing L7 data
@@ -170,6 +165,68 @@ class PcapController extends Controller
     }
 
     /**
+     * JSON for virtual-scrolling packets
+     */
+    public function packets(Request $request, string $id): JsonResponse
+    {
+        $job = AnalysisJob::where('analysis_id', $id)->firstOrFail();
+
+        if ($job->status !== 'finished') {
+            return response()->json(['error' => 'Analysis not complete.'], 409);
+        }
+
+        $perPage = min((int) $request->query('per_page', 100), 500);
+        $page = max((int) $request->query('page', 1), 1);
+        $query = trim($request->query('q', ''));
+
+        $queryBuilder = Packet::where('analysis_id', $id);
+
+        if ($query !== '') {
+            $term = "%{$query}%";
+
+            $queryBuilder->where(function ($q) use ($term) {
+                $q->where('src_ip', 'like', $term)
+                ->orWhere('dst_ip', 'like', $term)
+                ->orWhere('l3_protocol', 'like', $term)
+                ->orWhere('l4_protocol', 'like', $term)
+                ->orWhereRaw("l7_attributes::text ILIKE ?", [$term]);
+            });
+        }
+
+        $total = $queryBuilder->count();
+
+        $packets = $queryBuilder
+            ->orderBy('packet_number', 'asc')
+            ->forPage($page, $perPage)
+            ->get([
+                'packet_id',
+                'packet_number',
+                'timestamp',
+                'l3_protocol',
+                'l4_protocol',
+                'l7_attributes',
+                'src_ip',
+                'dst_ip',
+                'src_port',
+                'dst_port',
+                'tcp_flag',
+                'tcp_window',
+                'tcp_seq_number',
+                'tcp_ack_number',
+                'captured_packet_length',
+                'raw_hex',
+            ]);
+
+        return response()->json([
+            'data' => $packets,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => (int) ceil($total / $perPage),
+        ]);
+    }
+
+    /**
      * Dispatch analysis job and log it into db under status 'dispatching'
      */
     private function handleNewJob($rebuiltFileName)
@@ -180,7 +237,7 @@ class PcapController extends Controller
             'analysis_id' => $uuid,
             'file_path' => $rebuiltFileName,
             'status' => 'dispatching',
-            'l7_status' => 'dispatching'
+            'l7_status' => 'dispatching',
         ]);
 
         AnalyzePcap::dispatch($uuid, $rebuiltFileName);
