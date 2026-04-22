@@ -4,6 +4,10 @@ import { router, Head, Link } from '@inertiajs/vue3'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import NavBar from '../components/NavBar.vue'
+import Footer from '../components/Footer.vue'
+import ProtocolDistributionPieChart from '@/components/ProtocolDistributionPieChart.vue'
+import TopTalkersBarChart from '@/components/TopTalkersBarChart.vue'
+import PacketSizeHistogram from '@/components/PacketSizeHistogram.vue'
 
 const props = defineProps({
     total_packets: { type: Number, default: 0 },
@@ -15,9 +19,13 @@ const props = defineProps({
     total_bytes: Number,
     first_packet_time: Number,
     last_packet_time: Number,
-    expires_at: String
+    expires_at: String,
+    l3_distribution: Object,
+    l4_distribution: Object,
+    l7_distribution: Object,
+    top_talkers: Object,
+    size_distribution: Object,
 })
-
 let expiryInterval = null
 
 function startExpiryPolling() {
@@ -40,7 +48,6 @@ onUnmounted(() => {
 })
 
 const showToast = ref(false)
-
 const copyUrl = () => {
     const textToCopy = window.location.href;
 
@@ -393,8 +400,12 @@ function startPolling() {
     if (pollingInterval) return
     pollingInterval = setInterval(() => {
         router.reload({ 
-            only: ['status', 'l7_status', 'message', 'total_bytes', 'id', 'first_packet_time',
-                   'last_packet_time', 'progress', 'expires_at', 'total_packets'],
+            only: 
+                [
+                    'status', 'l7_status', 'message', 'total_bytes', 'id', 'first_packet_time',
+                    'last_packet_time', 'progress', 'expires_at', 'total_packets', 
+                    'l7_distribution', 'l3_distribution', 'l4_distribution', 'top_talkers', 'size_distribution'
+                ],
         })
     }, 500)
 }
@@ -419,6 +430,10 @@ watch(
         }
         if (newStatus === 'finished') {
             if (newL7Status !== 'dispatching') {
+                if(newL7Status === 'finished'){
+                    resetStore()
+                    await initVirtualList()
+                }
                 stopPolling()
                 startExpiryPolling()
             }
@@ -746,6 +761,34 @@ const formatIP = (ip) => {
                             </p>
                         </div>
 
+                    </div>
+                    <!-- Protocol distribution PieCharts -->
+                    <div class="grid grid-cols-1 pt-6 md:grid-cols-3 gap-6">
+                        <div v-if="Object.keys(props.l3_distribution).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                            <ProtocolDistributionPieChart chart_name="Network Layer" subtitle="Network Layer Protocol Distribution" :data="props.l3_distribution" />
+                        </div>
+
+                        <div v-if="Object.keys(props.l4_distribution).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                            <ProtocolDistributionPieChart chart_name="Transport Layer" subtitle="Transport Layer Protocol Distribution" :data="props.l4_distribution" />
+                        </div>
+
+                        <div v-if="Object.keys(props.l7_distribution).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                            <ProtocolDistributionPieChart chart_name="Application Layer" subtitle="Application Layer Protocol Distribution" :data="props.l7_distribution" />
+                        </div>
+                    </div>
+
+                    <!-- Hosts with most packets sent histogram -->
+                    <div class="pt-6">
+                        <div v-if="Object.keys(props.top_talkers).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                            <TopTalkersBarChart chart_name="Top Talkers" subtitle="Hosts who Sent the Most Packets" :data="props.top_talkers"></TopTalkersBarChart>
+                        </div>
+                    </div>
+
+                    <!-- Packet size distribution histogram -->
+                    <div class="pt-6">
+                        <div v-if="Object.keys(props.size_distribution).length !== 0" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                            <PacketSizeHistogram chart_name="Packet Size Distribution" :first_packet_time="props.first_packet_time" :data="props.size_distribution" :bucket_amount="10" :bucket_size="1500" />
+                        </div>
                     </div>
 
                 </div>

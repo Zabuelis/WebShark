@@ -9,6 +9,8 @@ use App\Models\Packet;
 use App\Jobs\AnalyzePcap;
 use App\Models\IpMarker;
 use Exception;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -81,6 +83,11 @@ class PcapController extends Controller
 
             // Metadata used by the Overview tab and time formatting
             'total_bytes' => 0,
+            'l3_distribution' => null,
+            'l4_distribution' => null,
+            'l7_distribution' => null,
+            'top_talkers' => null,
+            'size_distribution' => null,
             'first_packet_time' => 0,
             'last_packet_time' => 0,
             'total_packets' => 0,
@@ -108,8 +115,51 @@ class PcapController extends Controller
         $first = Packet::where('analysis_id', $id)->orderBy('packet_number', 'asc')->value('timestamp');
         $last  = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->value('timestamp');
 
+        // L3 protocol distribution based on amount of packets containing L3 data
+        $props['l3_distribution'] = Packet::select('l3_protocol as protocol_name',  DB::raw('count (*) as records'))
+            ->where('analysis_id', $id)
+            ->whereNotNull('l3_protocol')
+            ->groupBy('protocol_name')
+            ->get();
+
+        // L4 protocol distribution based on amount of packets containing L4 data
+        $props['l4_distribution'] = Packet::select('l4_protocol as protocol_name',  DB::raw('count (*) as records'))
+            ->where('analysis_id', $id)
+            ->whereNotNull('l4_protocol')
+            ->groupBy('protocol_name')
+            ->get();
+
+        // 15 IP addresses with highest amount of packets sent
+        $props['top_talkers'] = Packet::select('src_ip as IP', DB::raw('count (*) as records'))
+            ->where('analysis_id', $id)
+            ->whereNotNull('src_ip')
+            ->groupBy('IP')
+            ->orderBy('records', 'desc')
+            ->limit(15)
+            ->get();
+
+        // Create 10 buckets of sizes (0 - 1500)
+        $props['size_distribution'] = Packet::select(DB::raw('count (*) as packet_amount'), DB::raw('width_bucket(captured_packet_length, 0, 1501, 10) as packet_size'))
+            ->where('analysis_id', $id)
+            ->whereNotNull('captured_packet_length')
+            ->groupBy('packet_size')
+            ->orderBy('packet_size', 'desc')
+            ->get();
+
+        $lastPacket = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->first();
+
         $props['first_packet_time'] = $first ? (float) $first : 0;
         $props['last_packet_time']  = $last  ? (float) $last  : 0;
+
+
+        if ($l7_status === 'finished'){
+            // L7 protocol distribution based on amount of packets containing L7 data
+            $props['l7_distribution'] = Packet::select(DB::raw("l7_attributes->>'Protocol' as protocol_name"), DB::raw('count (*) as records'))
+                ->where('analysis_id', $id)
+                ->whereRaw("l7_attributes->>'Protocol' IS NOT NULL")
+                ->groupBy('protocol_name')
+                ->get();
+        }
 
         return Inertia::render('Analysis', $props);
     }
@@ -133,13 +183,13 @@ class PcapController extends Controller
 
         if ($query !== '') {
             $term = "%{$query}%";
-
+    
             $queryBuilder->where(function ($q) use ($term) {
                 $q->where('src_ip', 'like', $term)
                 ->orWhere('dst_ip', 'like', $term)
                 ->orWhere('l3_protocol', 'like', $term)
                 ->orWhere('l4_protocol', 'like', $term)
-                ->orWhereRaw("l7_attributes::text ILIKE ?", [$term]);
+                ->orWhereRaw("l7_attributes->>'Protocol' LIKE '{$term}'");
             });
         }
 
@@ -183,14 +233,14 @@ class PcapController extends Controller
     {
         $uuid = (string) Str::uuid();
 
-        AnalyzePcap::dispatch($uuid, $rebuiltFileName);
-
         AnalysisJob::insert([
             'analysis_id' => $uuid,
             'file_path' => $rebuiltFileName,
             'status' => 'dispatching',
             'l7_status' => 'dispatching',
         ]);
+
+        AnalyzePcap::dispatch($uuid, $rebuiltFileName);
 
         return $uuid;
     }
