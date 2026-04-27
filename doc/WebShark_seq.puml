@@ -8,7 +8,7 @@ participant "Vue.js" as Web
 participant "Laravel" as Controller
 participant "Valkey" as Queue
 participant "Queue Worker" as Job
-participant "Scapy" as Python
+participant "analyze.py" as Python
 database PostgreSQL as DB
 
 == File Upload and Job Dispatch ==
@@ -19,7 +19,7 @@ Web -> Controller: POST /file/uploadPcap
 activate Controller
 Controller -> Controller: Save file
 Controller -> Queue: Dispatch background job
-Controller -> DB: Insert redis_job (status: dispatching)
+Controller -> DB: Insert analysis_job\n(status: dispatching, L7_status: dispatching)
 Controller --> Web: Redirect response
 deactivate Controller
 Web --> User: Show Progress Bar
@@ -31,11 +31,19 @@ activate Job
 Queue --> Job: Return job data
 Job -> Python: Run analyze.py
 activate Python
-Python -> DB: Update progress_percentage
-Python -> DB: Batch insert packets
+
+opt file is valid PCAP
+        Python -> DB: Update progress_percentage
+        Python -> DB: Batch insert packets (L3/L4)
+end
+
+opt Scapy analysis passed
+        Python -> DB: Stream update L7_attributes (batch)
+end
+
 Python --> Job: Exit (success/fail)
 deactivate Python
-Job -> DB: Update redis_job (status: finished/failed)
+Job -> DB: Update analysis_job\n(status: finished / failed,\nL7_status: finished / failed)
 Job -> Job: Remove file
 deactivate Job
 
@@ -44,13 +52,13 @@ User -> Web: View Analysis page
 activate Web
 Web -> Controller: GET /pcap/analysis/{id}
 activate Controller
-Controller -> DB: Query packets data
+Controller -> DB: Query analysis_job + packets
 activate DB
-DB --> Controller: Return dataset
+DB --> Controller: Return data
 deactivate DB
-Controller --> Web: Return data
+Controller --> Web: Return data\n(status, L7_status, packets)
 deactivate Controller
-Web --> User: Render results
+Web --> User: Render results\n(L7 shown only if L7_status: finished)
 deactivate Web
 deactivate User
 

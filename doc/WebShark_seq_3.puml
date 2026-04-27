@@ -1,0 +1,28 @@
+@startuml
+autonumber
+skinparam ParticipantPadding 10
+skinparam BoxPadding 10
+
+actor User
+participant "Vue.js" as Web
+participant "Laravel" as Controller
+participant "Valkey" as Queue
+participant "Queue Worker" as Job
+participant "analyze.py" as Python
+database PostgreSQL as DB
+
+== Result Viewing ==
+User -> Web: View Analysis page
+activate Web
+Web -> Controller: GET /pcap/analysis/{id}
+activate Controller
+Controller -> DB: Query analysis_job + packets
+activate DB
+DB --> Controller: Return data
+deactivate DB
+Controller --> Web: Return data\n(status, L7_status, packets)
+deactivate Controller
+Web --> User: Render results\n(L7 shown only if L7_status: finished)
+deactivate Web
+deactivate User
+@enduml

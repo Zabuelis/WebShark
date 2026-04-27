@@ -1,0 +1,37 @@
+@startuml
+autonumber
+skinparam ParticipantPadding 10
+skinparam BoxPadding 10
+
+actor User
+participant "Vue.js" as Web
+participant "Laravel" as Controller
+participant "Valkey" as Queue
+participant "Queue Worker" as Job
+participant "analyze.py" as Python
+database PostgreSQL as DB
+
+== Background Processing ==
+Job -> Queue: Poll for next job
+activate Job
+Queue --> Job: Return job data
+Job -> Python: Run analyze.py
+activate Python
+
+opt file is valid PCAP
+        Python -> DB: Update progress_percentage
+        Python -> DB: Batch insert packets (L3/L4)
+end
+
+opt Scapy analysis passed
+        Python -> DB: Stream update L7_attributes (batch)
+end
+
+Python --> Job: Exit (success/fail)
+deactivate Python
+Job -> DB: Update analysis_job\n(status: finished / failed,\nL7_status: finished / failed)
+Job -> Job: Remove file
+deactivate Job
+
+
+@enduml
