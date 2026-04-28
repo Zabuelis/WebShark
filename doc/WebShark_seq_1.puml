@@ -9,6 +9,8 @@ participant "Laravel" as Controller
 participant "Valkey" as Queue
 participant "Queue Worker" as Job
 participant "analyze.py" as Python
+participant "Scapy" as Scapy
+participant "tshark" as Tshark
 database PostgreSQL as DB
 
 == File Upload and Job Dispatch ==

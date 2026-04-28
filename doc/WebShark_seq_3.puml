@@ -9,6 +9,8 @@ participant "Laravel" as Controller
 participant "Valkey" as Queue
 participant "Queue Worker" as Job
 participant "analyze.py" as Python
+participant "Scapy" as Scapy
+participant "tshark" as Tshark
 database PostgreSQL as DB
 
 == Result Viewing ==
@@ -25,4 +27,5 @@ deactivate Controller
 Web --> User: Render results\n(L7 shown only if L7_status: finished)
 deactivate Web
 deactivate User
+
 @enduml
