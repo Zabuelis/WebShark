@@ -22,6 +22,7 @@ return new class extends Migration
             $table->integer('src_port')->nullable(true);
             $table->integer('dst_port')->nullable(true);
             $table->string('tcp_flag')->nullable(true);
+            $table->integer('flow')->nullable(true);
             $table->integer('tcp_window')->nullable(true);
             $table->bigInteger('tcp_ack_number')->nullable(true);
             $table->bigInteger('tcp_seq_number')->nullable(true);

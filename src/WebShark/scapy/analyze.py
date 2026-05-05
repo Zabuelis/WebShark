@@ -32,6 +32,12 @@ tshark_protocols = {
 # Unique symbol which will never be encountered in real traffic data.
 field_separator = "\u001f"   # Special ascii character Unit Separator
 
+# Flow cache dict, stores (src_ip, dst_ip, src_port, dst_port) as a key
+# Stores id, initiator_key, receiver_key, initiator_fin, receiver_fin as value
+flow_cache = {}
+
+# Tracks new flows, each time upon new flow detection is incremented
+flow_num=0
 
 handlers = {
     "L3": {},
@@ -329,6 +335,7 @@ def analyze_packet(pkt, index):
         "id": index,
         "length": len(pkt),
         "timestamp": float(pkt.time),
+        "flow": None,
         "layers": {
             "L3": {},
             "L4": {},
@@ -347,6 +354,54 @@ def analyze_packet(pkt, index):
         result["layers"]["L4"] = handlers["L4"][l4_name](pkt)
 
     return result
+
+# Asigns TCP packets to a specific flow, based on flow_cache dict
+# Creates new TCP flows upon syn flag detection
+# Finishes TCP flows upon fin flag detection
+def reassemble_flows(pkt):
+    flags = pkt["layers"]["L4"].get("flags")
+
+    # Construct a key from IPs and PORTs
+    if pkt["layers"]["L3"].get("src") < pkt["layers"]["L3"].get("dst"):
+        src_ip = pkt["layers"]["L3"].get("src")
+        dst_ip = pkt["layers"]["L3"].get("dst")
+    else:
+        dst_ip = pkt["layers"]["L3"].get("src")
+        src_ip = pkt["layers"]["L3"].get("dst")
+    if pkt["layers"]["L4"].get("src_port") < pkt["layers"]["L4"].get("dst_port"):
+        src_port = pkt["layers"]["L4"].get("src_port")
+        dst_port = pkt["layers"]["L4"].get("dst_port")
+    else:
+        dst_port = pkt["layers"]["L4"].get("src_port")
+        src_port = pkt["layers"]["L4"].get("dst_port")
+
+    key = (src_ip, dst_ip, src_port, dst_port)
+    sender = (pkt["layers"]["L3"].get("src"), pkt["layers"]["L4"].get("src_port"))
+
+    if "S" in flags and "A" not in flags:
+        flow_cache[key] = {
+            "id": flow_num,
+            "initiator": sender,
+            "receiver": (pkt["layers"]["L3"].get("dst"), pkt["layers"]["L4"].get("dst_port")),
+            "initiator_fin": False,
+        }
+        pkt["flow"] = flow_num
+        flow_num += 1
+    elif flow_cache[key] is not None:
+        flow = flow_cache[key]
+        if "F" in flags:
+            if sender == flow["receiver"] and flow["initiator_fin"] is True:
+                pkt["flow"] = flow["id"]
+                flow_cache.pop(key)
+            elif sender == flow["initiator"]:
+                pkt["flow"] = flow["id"]
+                flow_cache[key]["initiator_fin"] = True
+        else:
+            pkt["flow"] = flow["id"]
+    return pkt
+
+
+
 
 # Entry point
 file_path = sys.argv[1]
@@ -388,16 +443,23 @@ try:
                 src_port, 
                 dst_port,
                 tcp_flag,
+                flow,
                 tcp_window,
                 tcp_ack_number,
                 tcp_seq_number,
                 l4_protocol,
                 timestamp,
                 raw_hex
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
 
         for index, pkt in enumerate(reader, start=1):
             result = analyze_packet(pkt, index)
+
+            if "TCP" in result["layers"]["L4"].get("protocol"):
+                result = reassemble_flows(result)
+
+            if "TCP" in result["layers"]["L4"].get("protocol"):
+                reassemble_flows(result)
 
             if index % 500 == 0:
                 current_pos = reader.f.tell()
@@ -423,6 +485,7 @@ try:
                 result["layers"]["L4"].get("src_port"), 
                 result["layers"]["L4"].get("dst_port"),
                 result["layers"]["L4"].get("flags"),
+                result["flow"],
                 result["layers"]["L4"].get("window"),
                 result["layers"]["L4"].get("ack"),
                 result["layers"]["L4"].get("seq"),
