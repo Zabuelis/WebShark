@@ -37,7 +37,7 @@ field_separator = "\u001f"   # Special ascii character Unit Separator
 flow_cache = {}
 
 # Tracks new flows, each time upon new flow detection is incremented
-flow_num=0
+flow_num = 0
 
 handlers = {
     "L3": {},
@@ -360,6 +360,7 @@ def analyze_packet(pkt, index):
 # Finishes TCP flows upon fin flag detection
 def reassemble_flows(pkt):
     flags = pkt["layers"]["L4"].get("flags")
+    global flow_num
 
     # Construct a key from IPs and PORTs
     if pkt["layers"]["L3"].get("src") < pkt["layers"]["L3"].get("dst"):
@@ -387,7 +388,7 @@ def reassemble_flows(pkt):
         }
         pkt["flow"] = flow_num
         flow_num += 1
-    elif flow_cache[key] is not None:
+    elif flow_cache.get(key) is not None:
         flow = flow_cache[key]
         if "F" in flags:
             if sender == flow["receiver"] and flow["initiator_fin"] is True:
@@ -399,9 +400,6 @@ def reassemble_flows(pkt):
         else:
             pkt["flow"] = flow["id"]
     return pkt
-
-
-
 
 # Entry point
 file_path = sys.argv[1]
@@ -455,11 +453,9 @@ try:
         for index, pkt in enumerate(reader, start=1):
             result = analyze_packet(pkt, index)
 
-            if "TCP" in result["layers"]["L4"].get("protocol"):
+            if result["layers"]["L4"].get("protocol") is not None and "TCP" in result["layers"]["L4"].get("protocol"):
                 result = reassemble_flows(result)
 
-            if "TCP" in result["layers"]["L4"].get("protocol"):
-                reassemble_flows(result)
 
             if index % 500 == 0:
                 current_pos = reader.f.tell()
