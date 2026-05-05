@@ -358,47 +358,72 @@ def analyze_packet(pkt, index):
 # Asigns TCP packets to a specific flow, based on flow_cache dict
 # Creates new TCP flows upon syn flag detection
 # Finishes TCP flows upon fin flag detection
+# If will be retired tshark returns different flag names, they should be changed here.
 def reassemble_flows(pkt):
     flags = pkt["layers"]["L4"].get("flags")
     global flow_num
 
-    # Construct a key from IPs and PORTs
-    if pkt["layers"]["L3"].get("src") < pkt["layers"]["L3"].get("dst"):
+    # Construct a key from IPs and PORTs, prioritize lower port as message source
+    # Lower port has no real impact, only normalizes the key creation.
+    if pkt["layers"]["L4"].get("src_port") < pkt["layers"]["L4"].get("dst_port"):
         src_ip = pkt["layers"]["L3"].get("src")
         dst_ip = pkt["layers"]["L3"].get("dst")
-    else:
-        dst_ip = pkt["layers"]["L3"].get("src")
-        src_ip = pkt["layers"]["L3"].get("dst")
-    if pkt["layers"]["L4"].get("src_port") < pkt["layers"]["L4"].get("dst_port"):
         src_port = pkt["layers"]["L4"].get("src_port")
         dst_port = pkt["layers"]["L4"].get("dst_port")
     else:
+        dst_ip = pkt["layers"]["L3"].get("src")
+        src_ip = pkt["layers"]["L3"].get("dst")
         dst_port = pkt["layers"]["L4"].get("src_port")
         src_port = pkt["layers"]["L4"].get("dst_port")
 
     key = (src_ip, dst_ip, src_port, dst_port)
     sender = (pkt["layers"]["L3"].get("src"), pkt["layers"]["L4"].get("src_port"))
 
+    # S (SYN) flag indicates the beggining of a TCP session
     if "S" in flags and "A" not in flags:
         flow_cache[key] = {
             "id": flow_num,
             "initiator": sender,
             "receiver": (pkt["layers"]["L3"].get("dst"), pkt["layers"]["L4"].get("dst_port")),
             "initiator_fin": False,
+            "receiver_fin": False,
         }
         pkt["flow"] = flow_num
         flow_num += 1
     elif flow_cache.get(key) is not None:
         flow = flow_cache[key]
+        # F (FIN) flag indicates that one side want to close the connection
         if "F" in flags:
             if sender == flow["receiver"] and flow["initiator_fin"] is True:
                 pkt["flow"] = flow["id"]
                 flow_cache.pop(key)
-            elif sender == flow["initiator"]:
+            elif sender == flow["initiator"] and flow["receiver_fin"] is True:
                 pkt["flow"] = flow["id"]
-                flow_cache[key]["initiator_fin"] = True
+                flow_cache.pop(key)
+            else:
+                if sender == flow["initiator"]:
+                    flow_cache[key]["initiator"] = True
+                elif sender == flow["receiver"]:
+                    flow_cache[key]["receiver"] = True
+        # R (RST) flag indicates to break the connection right at this moment
+        if "R" in flags:
+            pkt["flow"] = flow["id"]
+            flow_cache.pop(key)
+        # Everything else is flow traffic
         else:
             pkt["flow"] = flow["id"]
+    else:
+        # Packets that are not SYN and have no record in flow cache
+        # Are interpreted as having no beginning recorded. In this case they also get a unique flow.
+        flow_cache[key] = {
+            "id": flow_num,
+            "initiator": sender,
+            "receiver": (pkt["layers"]["L3"].get("dst"), pkt["layers"]["L4"].get("dst_port")),
+            "initiator_fin": False,
+            "receiver_fin": False,
+        }
+        pkt["flow"] = flow_num
+        flow_num += 1
     return pkt
 
 # Entry point
