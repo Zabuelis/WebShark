@@ -12,12 +12,9 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
-// Upload route with rate limiting
-Route::middleware('rateLimit')->group(function () {
-    Route::post('/file/uploadPcap', [
-        PcapController::class,
-        'create',
-    ])->name('upload.pcap');
+// Use the native 'throttle' middleware
+Route::middleware('throttle:pcap-uploads')->group(function () {
+    Route::post('/file/uploadPcap', [PcapController::class, 'create'])->name('upload.pcap');
 });
 
 // Route to display packet data

@@ -136,6 +136,8 @@ sudo docker compose --env-file src/WebShark/.env exec db psql -U webshark -d web
 ## To see Valkey
 ```bash
 sudo docker compose --env-file src/WebShark/.env exec valkey valkey-cli KEYS "*"
+
+sudo docker compose --env-file src/WebShark/.env exec valkey valkey-cli -n 1 KEYS "*"
 ```
 
 ## To see Cron
@@ -151,4 +153,9 @@ sudo docker exec -it webshark-app php artisan test
 ## Scalability for queue-worker
 ```bash
 sudo docker compose --env-file src/WebShark/.env up -d --scale queue-worker=3
+```
+
+## Reset all rate limits
+```bash
+sudo docker exec -it webshark-app php artisan cache:clear
 ```

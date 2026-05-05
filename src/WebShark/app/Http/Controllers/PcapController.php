@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use App\Models\AnalysisJob;
 use App\Models\Packet;
 use App\Jobs\AnalyzePcap;
-use App\Models\IpMarker;
 use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
@@ -39,16 +38,8 @@ class PcapController extends Controller
             $rebuiltFileName = now()->format('Y-m-d_h:i:s') . '_' . $sessionID . '_' . $fileName;
             $request->file('pcap_file')->storeAs('pcap', $rebuiltFileName);
 
-            // 1. Dispatch job & log to DB
+            // Dispatch job & log to DB
             $uuid = $this->handleNewJob($rebuiltFileName);
-
-            // 2. Increment analyze_counter for the current user
-            $ipMarker = IpMarker::where('ip_address', $currentIP)->first();
-            if ($ipMarker) {
-                $ipMarker->update([
-                    'analyze_counter' => $ipMarker->analyze_counter + 1,
-                ]);
-            }
 
             return redirect()->route('pcap.status', ['id' => $uuid])->with('success', 'File uploaded successfully, analysis started.');
 
