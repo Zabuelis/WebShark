@@ -8,6 +8,7 @@ import Footer from '../components/Footer.vue'
 import ProtocolDistributionPieChart from '@/components/ProtocolDistributionPieChart.vue'
 import TopTalkersBarChart from '@/components/TopTalkersBarChart.vue'
 import PacketSizeHistogram from '@/components/PacketSizeHistogram.vue'
+import PacketList from '@/components/PacketList.vue'
 
 const props = defineProps({
     total_packets: { type: Number, default: 0 },
@@ -89,7 +90,6 @@ const copyUrl = () => {
         document.body.removeChild(textArea);
     }
 }
-
 
 const captureDuration = computed(() => {
     if (!props.first_packet_time || !props.last_packet_time) return "0.00"
@@ -549,188 +549,7 @@ const formatIP = (ip) => {
             <!-- For the packets tab -->
             <template v-if="activeTab === 'packets'">
 
-                <!-- The left side -->
-                <main class="flex-1 flex flex-col overflow-hidden border-r border-slate-200 min-w-0">
-
-                    <!-- Toolbar -->
-                    <div class="p-3 bg-white border-b border-slate-200 flex gap-2">
-                        <div class="relative flex-1">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                            </span>
-                            <input 
-                                v-model="filterText" 
-                                type="text" 
-                                placeholder="Search by IP, Protocol (e.g. 192.168 or TCP)..." 
-                                class="w-full pl-10 pr-4 py-2 bg-slate-100 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                            />
-                            <!-- Spinner inside the search box -->
-                            <span v-if="isSearching" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400">
-                                <svg class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                                </svg>
-                            </span>
-                        </div>
-                        <div class="flex items-center gap-1.5 shrink-0">
-                            <input
-                                v-model="jumpInput"
-                                @keydown.enter="jumpToPacket"
-                                type="number"
-                                min="1"
-                                :max="totalItems || undefined"
-                                placeholder="Go to #"
-                                :class="[
-                                    'w-28 px-3 py-2 bg-slate-100 border rounded-md text-sm font-mono',
-                                    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all',
-                                    jumpError ? 'border-red-400' : 'border-slate-200'
-                                ]"
-                            />
-                            <button
-                                @click="jumpToPacket"
-                                :disabled="isJumping"
-                                class="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-md text-sm font-bold transition-colors flex items-center gap-1.5"
-                            >
-                                <svg v-if="isJumping" class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                                </svg>
-                                Jump
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Jump error -->
-                    <div v-if="jumpError" class="px-4 py-1.5 bg-red-50 border-b border-red-100 text-red-600 text-xs shrink-0">
-                        {{ jumpError }}
-                    </div>
-
-                    <div class="overflow-x-auto flex-1">
-                        <div class="min-w-[1000px] flex flex-col h-full">
-                            <!-- Packet headers -->
-                            <div class="packet-row grid gap-x-4 px-6 py-2 bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
-                                <div>ID</div>
-                                <div>Time</div>
-                                <div>Source</div>
-                                <div>Destination</div>
-                                <div>Proto</div>
-                                <div>Len</div>
-                                <div>Info</div>
-                            </div>
-
-                            <!-- virtual scroll -->
-                            <RecycleScroller
-                                ref="scrollerRef"
-                                class="flex-1"
-                                :items="items"
-                                :item-size="ROW_HEIGHT"
-                                key-field="packet_number"
-                                @scroll="onScroll"
-                            >
-                                <template #default="{ item: packet }">
-                                    <div
-                                        @click="handlePacketClick(packet)"
-                                        :class="[
-                                            'packet-row grid gap-x-4 px-6 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono',
-                                            { 'bg-blue-100': selectedPacket === packet },
-                                            { 'opacity-40 cursor-default hover:bg-transparent': packet._placeholder },
-                                            { '!bg-yellow-100': jumpHighlight === packet.packet_number }
-                                        ]"
-                                    >
-                                        <div class="text-slate-400">{{ packet.packet_number }}</div>
-                                        <div class="text-slate-500 text-xs">
-                                            {{ packet._placeholder ? 'Loading...' : formatTime(packet.timestamp) + 's' }}
-                                        </div>
-                                        <div class="text-slate-800 font-medium">{{ formatIP(packet.src_ip) }}</div>
-                                        <div class="text-slate-800">{{ formatIP(packet.dst_ip) }}</div>
-                                        <div>
-                                            <span v-if="!packet._placeholder"
-                                                :class="getProtoColor(packet)"
-                                                class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
-                                                {{ highestLevelProtocol(packet) }}
-                                            </span>
-                                        </div>
-                                        <div class="text-slate-500 text-xs">{{ packet.captured_packet_length }}</div>
-                                        <div class="text-slate-600 truncate text-xs italic">
-                                            {{ packet._placeholder ? 'Loading...' : protocolSpecificInformation(packet) }}
-                                        </div>
-                                    </div>
-                                </template>
-                            </RecycleScroller>
-                        </div>    
-                    </div>
-
-                    <div class="text-xs text-slate-500 px-4 py-2 border-t border-slate-200 bg-white">
-
-                        <!-- Normal -->
-                        <template v-if="!isSearchActive">
-                            <span class="font-bold text-slate-900">
-                                {{ totalItems.toLocaleString() }}
-                            </span>
-                            packets total
-                        </template>
-
-                        <!-- Searching -->
-                        <template v-else-if="isSearching">
-                            Searching for
-                            "<span class="font-mono font-bold text-slate-900">{{ filterText }}</span>"...
-                        </template>
-
-                        <!-- Results -->
-                        <template v-else>
-                            <span class="font-bold text-slate-900">
-                                {{ totalItems.toLocaleString() }}
-                            </span>
-                            results for
-                            "<span class="font-mono">{{ filterText }}</span>"
-                        </template>
-
-                    </div>
-
-                </main>
-
-                <!-- The right side -->
-                <aside class="w-[600px] bg-white overflow-y-auto p-6">
-                    
-                    <!-- Content if packet is selected -->
-                    <div v-if="selectedPacket" class="flex-1 overflow-y-auto p-5">
-                        
-                        <!-- Header with ID and Protocol Badge -->
-                        <div class="flex items-center justify-between mb-6">
-                            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-tight">Packet #{{ selectedPacket.packet_number }}</h3>
-                            <span :class="getProtoColor(selectedPacket)" class="text-[10px] font-black px-2 py-0.5 rounded border uppercase">
-                                {{ highestLevelProtocol(selectedPacket) }}
-                            </span>
-                        </div>
-
-                        <!-- Sections (uses 'const detailSections') -->
-                        <div v-for="section in detailSections" :key="section.title" class="mb-6">
-                            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-1">
-                                {{ section.title }}
-                            </div>
-                            
-                            <div class="space-y-2">
-                                <div v-for="field in section.fields" :key="field.label" class="flex justify-between items-start gap-4">
-                                    <span class="text-xs text-slate-400 font-medium whitespace-nowrap">{{ field.label }}</span>
-                                    <span class="text-xs font-mono font-bold text-slate-800 text-right break-all">
-                                        {{ field.value }}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Raw Hex -->
-                        <div class="mt-8">
-                            <div class="text-[10px] font-bold text-slate-400 border-b border-slate-100 uppercase tracking-widest mb-3">Raw Hex</div>
-                            <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 font-mono text-[11px] text-slate-600 leading-relaxed shadow-sm">
-                                {{ selectedPacket.raw_hex }}
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- No Packet Selected -->
-                    <div v-else class="h-full flex flex-col items-center justify-center text-slate-400 italic">
-                        <p>Select a packet to view details</p>
-                    </div>
-                </aside>
+                <PacketList :url="`/pcap/analysis/${props.id}/packets`" :status="props.status" :l7_status="props.l7_status" />
 
             </template>
 

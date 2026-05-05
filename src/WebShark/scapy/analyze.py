@@ -358,7 +358,7 @@ def analyze_packet(pkt, index):
 # Asigns TCP packets to a specific flow, based on flow_cache dict
 # Creates new TCP flows upon syn flag detection
 # Finishes TCP flows upon fin flag detection
-# If will be retired tshark returns different flag names, they should be changed here.
+# If scapy will be retired, tshark returns different flag names, they should be changed here.
 def reassemble_flows(pkt):
     flags = pkt["layers"]["L4"].get("flags")
     global flow_num
@@ -412,9 +412,9 @@ def reassemble_flows(pkt):
         # Everything else is flow traffic
         else:
             pkt["flow"] = flow["id"]
+    # Packets that are not SYN and have no record in the flow cache
+    # are interpreted as having no beginning recorded. In this case they also get a unique flow.
     else:
-        # Packets that are not SYN and have no record in flow cache
-        # Are interpreted as having no beginning recorded. In this case they also get a unique flow.
         flow_cache[key] = {
             "id": flow_num,
             "initiator": sender,
