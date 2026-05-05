@@ -24,10 +24,19 @@ class PcapController extends Controller
         ]);
 
         $sessionID = session()->getId();
-        $currentIP = $request->ip();
+        $file = $request->file('pcap_file');
 
         // Laravel does not distinguish mime type pcap,pcapng and returns an error therefore, a manual check is needed
         if(!in_array($request->file('pcap_file')->getClientOriginalExtension(), ['pcap', 'pcapng'])){
+
+            Log::channel('audit')->warning('UPLOAD_FAILED_EXTENSION', [
+                'ip' => $request->ip(),
+                'session' => $sessionID,
+                'file_name' => $file->getClientOriginalName(),
+                'extension' => $file->getClientOriginalExtension(),
+                'size_bytes' => $file->getSize()
+            ]);
+
             return redirect()->back()->with('error', 'File upload failed, incorrect file extension');
         }
 
@@ -40,6 +49,13 @@ class PcapController extends Controller
 
             // Dispatch job & log to DB
             $uuid = $this->handleNewJob($rebuiltFileName);
+
+            Log::channel('audit')->info('UPLOAD_SUCCESS', [
+                'ip' => $request->ip(),
+                'session' => $sessionID,
+                'file' => $fileName,
+                'size_bytes' => $file->getSize()
+            ]);
 
             return redirect()->route('pcap.status', ['id' => $uuid])->with('success', 'File uploaded successfully, analysis started.');
 

@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Cache\RateLimiting\Limit;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -31,7 +32,13 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('pcap-uploads', function (Request $request) {
             
             if (!$request->hasSession() || empty($request->session()->getId())) {
-                return Limit::none()->response(function () {
+                return Limit::none()->response(function (Request $request) {
+
+                    Log::channel('audit')->warning('NO_COOKIES_REJECTED', [
+                        'ip' => $request->ip(),
+                        'session' => 'NONE'
+                    ]);
+
                     return redirect('/?error=cookies_required');
                 });
             }
@@ -42,6 +49,12 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perMinutes(15, 10)
                     ->by($request->session()->getId())
                     ->response(function (Request $request, array $headers) {
+
+                        Log::channel('audit')->warning('RATE_LIMIT_SESSION', [
+                            'ip' => $request->ip(),
+                            'session' => $request->session()->getId()
+                        ]);
+
                         $seconds = $headers['Retry-After'] ?? 0;
                         $wait = Carbon::now()->addSeconds($seconds)->diffForHumans(null, true);
                         return redirect()->back()->with('error', "You have reached your personal limit. Please try again in $wait.");
@@ -52,6 +65,12 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perMinutes(15, 200)
                     ->by($request->ip())
                     ->response(function (Request $request, array $headers) {
+
+                        Log::channel('audit')->warning('RATE_LIMIT_IP', [
+                            'ip' => $request->ip(),
+                            'session' => $request->session()->getId()
+                        ]);
+
                         $seconds = $headers['Retry-After'] ?? 0;
                         $wait = Carbon::now()->addSeconds($seconds)->diffForHumans(null, true);
                         return redirect()->back()->with('error', "High traffic from this network. Please try again in $wait.");

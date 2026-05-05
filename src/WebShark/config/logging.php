@@ -127,6 +127,26 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
+        'audit' => [
+            'driver' => 'stack',
+            'channels' => ['audit_file', 'audit_stdout'],
+        ],
+
+        'audit_file' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/audit.log'),
+            'level' => 'info',
+        ],
+
+        'audit_stdout' => [
+            'driver' => 'monolog',
+            'level' => 'info',
+            'handler_with' => \Monolog\Handler\StreamHandler::class,
+            'with' => [
+                'stream' => 'php://stderr',
+            ],
+        ],
+
     ],
 
 ];
