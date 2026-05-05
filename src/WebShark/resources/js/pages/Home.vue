@@ -1,8 +1,14 @@
 <script setup>
-    import { ref } from 'vue'
+    import { ref, onMounted } from 'vue'
     import { Head, useForm, usePage } from '@inertiajs/vue3'
     import NavBar from '../components/NavBar.vue'
     import Footer from '../components/Footer.vue'
+
+    const props = defineProps({
+        cookieError: String
+    })
+
+    const localCookieError = ref(props.cookieError);
 
     // Information related to the page that comes from inertia (flash messages, csfr_token, etc.)
     const pageMessages = usePage()
@@ -13,6 +19,14 @@
 
     const form = useForm({
         'pcap_file' : null
+    })
+
+    // Check for cookies on mount
+    onMounted(() => {
+        // If navigator says cookies are off, or if the URL has our error param
+        if (!navigator.cookieEnabled || new URLSearchParams(window.location.search).get('error') === 'cookies_required') {
+            localCookieError.value = "Cookies are required to analyze files. Please enable them and refresh the page.";
+        }
     })
 
     function toggleActive(){
@@ -35,6 +49,11 @@
     }
 
     function submit(){
+        if (!navigator.cookieEnabled) {
+            localCookieError.value = "Cannot submit: Cookies are disabled.";
+            return;
+        }
+
         form.post('/file/uploadPcap', {
             _token : pageMessages.props.csfr_token,
             forceFormData: true,    // Forms including files should be converted to FormData objects
@@ -54,6 +73,12 @@
     <NavBar />
 
     <div class = "flex-auto min-h-screen">
+
+        <!-- Cookie Specific Error -->
+        <div v-if="localCookieError" class="bg-orange-100 border border-orange-400 text-center text-orange-700 px-4 py-3 rounded relative" role="alert">
+            <strong class="font-bold">{{ localCookieError }}</strong>
+        </div>
+
         <!-- Feedback messages -->
         <div v-if="pageMessages.props.flash.error" class="bg-red-100 border border-red-400 text-center text-red-700 px-4 py-3 rounded relative" role="alert">
             <strong class="font-bold">{{ pageMessages.props.flash.error }}</strong>

@@ -29,7 +29,14 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         RateLimiter::for('pcap-uploads', function (Request $request) {
-            return [
+            
+            if (!$request->hasSession() || empty($request->session()->getId())) {
+                return Limit::none()->response(function () {
+                    return redirect('/?error=cookies_required');
+                });
+            }
+
+            return [ 
                 // Limit 1 is per session (let's say honest user)
                 // 10 req per 15 minutes
                 Limit::perMinutes(15, 10)
