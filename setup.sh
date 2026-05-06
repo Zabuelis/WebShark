@@ -56,6 +56,7 @@ Components: stable
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
+sleep 5
 sudo apt update -y
 sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
 
@@ -71,6 +72,7 @@ sudo docker compose --env-file src/WebShark/.env up -d --build
 sudo docker exec webshark-app composer install
 sudo docker compose --env-file src/WebShark/.env run --rm node npm install
 sudo docker compose --env-file src/WebShark/.env up -d --build
+sleep 5
 sudo docker exec webshark-node npm install
 
 sudo docker exec webshark-app php artisan key:generate
