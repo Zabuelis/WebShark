@@ -66,19 +66,19 @@ deploy_to_production:
     url: $APP_URL
   before_script:
     - *env-setup
-script:
-  - echo "Deploying WebShark to ${APP_URL}..."
-  - $COMPOSE_CMD down --remove-orphans
-  - $COMPOSE_CMD up -d --build --scale node=0
-  - sleep 10
-  - docker exec webshark-app composer install --no-interaction --optimize-autoloader --no-dev
-  - docker exec webshark-app chmod -R 775 storage bootstrap/cache
-  - docker exec webshark-app php artisan storage:link || echo "Already linked"
-  - docker exec webshark-app php artisan migrate --force
-  - $COMPOSE_CMD run -T --rm node sh -c "npm install && npm run build"
-  - docker exec webshark-app php artisan config:cache
-  - docker exec webshark-app php artisan route:cache
-  - docker exec webshark-app php artisan view:cache
-  - echo "Application is LIVE at ${APP_URL}"
+  script:
+    - echo "Deploying WebShark to ${APP_URL}..."
+    - $COMPOSE_CMD down --remove-orphans
+    - $COMPOSE_CMD up -d --build --scale node=0
+    - sleep 10
+    - docker exec webshark-app composer install --no-interaction --optimize-autoloader --no-dev
+    - docker exec webshark-app chmod -R 775 storage bootstrap/cache
+    - docker exec webshark-app php artisan storage:link || echo "Already linked"
+    - docker exec webshark-app php artisan migrate --force
+    - $COMPOSE_CMD run -T --rm node sh -c "npm install && npm run build"
+    - docker exec webshark-app php artisan config:cache
+    - docker exec webshark-app php artisan route:cache
+    - docker exec webshark-app php artisan view:cache
+    - echo "Application is LIVE at ${APP_URL}"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
