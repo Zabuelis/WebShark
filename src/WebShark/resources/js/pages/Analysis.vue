@@ -422,6 +422,27 @@ async function initVirtualList() {
     fetchPage(2)
 }
 
+async function refreshInPlace() {
+    const scroller = scrollerRef.value
+    const scrollEl = scroller?.$el
+    const savedScrollTop = scrollEl?.scrollTop ?? 0
+    const anchorPage = Math.floor(savedScrollTop / ROW_HEIGHT / PER_PAGE) + 1
+
+    resetStore()
+
+    // Fetch the window of pages the user was looking at
+    await fetchPage(anchorPage)
+    fetchPage(anchorPage - 1)
+    fetchPage(anchorPage + 1)
+
+    await nextTick()
+
+    // Restore scroll position
+    if (scrollEl) scrollEl.scrollTop = savedScrollTop
+}
+
+let packetsInitialized = false
+
 watch(
     () => [props.status, props.l7_status],
     async ([newStatus, newL7Status]) => {
@@ -430,9 +451,8 @@ watch(
         }
         if (newStatus === 'finished') {
             if (newL7Status !== 'dispatching') {
-                if(newL7Status === 'finished'){
-                    resetStore()
-                    await initVirtualList()
+                if (newL7Status === 'finished') {
+                    await refreshInPlace()
                 }
                 stopPolling()
                 startExpiryPolling()
