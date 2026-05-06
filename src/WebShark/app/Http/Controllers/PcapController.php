@@ -91,6 +91,7 @@ class PcapController extends Controller
             'first_packet_time' => 0,
             'last_packet_time' => 0,
             'total_packets' => 0,
+            'total_flows' => 0,
         ];
 
         // Check the status of the job
@@ -111,6 +112,7 @@ class PcapController extends Controller
         // If we are here, everything went well
         $props['total_packets'] = Packet::where('analysis_id', $id)->count();
         $props['total_bytes']   = (int) Packet::where('analysis_id', $id)->sum('captured_packet_length');
+        $props['total_flows'] = Packet::where('analysis_id', $id)->whereNotNull('flow')->distinct('flow')->count();
 
         $first = Packet::where('analysis_id', $id)->orderBy('packet_number', 'asc')->value('timestamp');
         $last  = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->value('timestamp');

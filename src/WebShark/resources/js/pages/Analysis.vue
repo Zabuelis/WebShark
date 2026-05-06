@@ -26,7 +26,10 @@ const props = defineProps({
     l7_distribution: Object,
     top_talkers: Object,
     size_distribution: Object,
+    total_flows: Number,
 })
+
+console.log(props.total_flows)
 let expiryInterval = null
 const totalItems = ref(props.total_packets ?? 0)
 
@@ -116,7 +119,7 @@ function startPolling() {
             only: 
                 [
                     'status', 'l7_status', 'message', 'total_bytes', 'id', 'first_packet_time',
-                    'last_packet_time', 'progress', 'expires_at', 'total_packets', 
+                    'last_packet_time', 'progress', 'expires_at', 'total_packets', 'total_flows',
                     'l7_distribution', 'l3_distribution', 'l4_distribution', 'top_talkers', 'size_distribution'
                 ],
         })
@@ -261,8 +264,14 @@ watch(
                         </div>
 
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <p class="text-xs font-bold text-slate-400 uppercase">Packets Captured</p>
-                            <p class="text-3xl font-black text-blue-600">{{ totalItems.toLocaleString() }}</p>
+                            <div class="flex flex-row justify-between">
+                                <p class="text-xs font-bold text-start text-slate-400 uppercase">Packets Captured</p>
+                                <p class="text-xs font-bold text-end text-slate-400 uppercase">Total TCP Flows</p>
+                            </div>
+                            <div class="flex flex-row justify-between">
+                                <p class="text-3xl flex text-start font-black text-blue-600">{{ totalItems.toLocaleString() }}</p>
+                                <p class="text-3xl flex text-end font-black text-blue-600">{{ props.total_flows }}</p>
+                            </div>
                         </div>
 
                         <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
