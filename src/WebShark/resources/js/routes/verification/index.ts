@@ -240,9 +240,4 @@ const verification = {
     send: Object.assign(send, send),
 }
 
-export default verificationect.assign(notice, notice),
-    verify: Object.assign(verify, verify),
-    send: Object.assign(send, send),
-}
-
 export default verification

@@ -141,7 +141,7 @@ return [
         'audit_stdout' => [
             'driver' => 'monolog',
             'level' => 'info',
-            'handler_with' => \Monolog\Handler\StreamHandler::class,
+            'handler' => \Monolog\Handler\StreamHandler::class,
             'with' => [
                 'stream' => 'php://stderr',
             ],

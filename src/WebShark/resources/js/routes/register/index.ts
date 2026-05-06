@@ -59,13 +59,4 @@ const register = {
     store: Object.assign(store, store),
 }
 
-export default registerpost',
-})
-
-store.form = storeForm
-
-const register = {
-    store: Object.assign(store, store),
-}
-
 export default register
