@@ -50,7 +50,6 @@ const detailSections = computed(() => {
         {
             title: "Application Layer",
             fields: [
-
                 // Dynamic L7 attributes when present
                 ...(p.l7_attributes
                     ? Object.entries(p.l7_attributes)
@@ -135,7 +134,7 @@ const pageStore = new Map()
 const loadedPages = ref(new Set())
 const loadingPages = new Set()
 
-const totalItems = ref(props.total_packets ?? 0)
+const totalItems = ref(0)
 const totalPages = ref(0)
 
 const items = ref([])
@@ -297,6 +296,24 @@ async function initVirtualList() {
     fetchPage(2)
 }
 
+// Refresh packet list in place, preserving the user's scroll position
+async function refreshInPlace() {
+    const scroller = scrollerRef.value
+    const scrollEl = scroller?.$el
+    const savedScrollTop = scrollEl?.scrollTop ?? 0
+    const anchorPage = Math.floor(savedScrollTop / ROW_HEIGHT / PER_PAGE) + 1
+
+    resetStore()
+
+    await fetchPage(anchorPage)
+    fetchPage(anchorPage - 1)
+    fetchPage(anchorPage + 1)
+
+    await nextTick()
+
+    if (scrollEl) scrollEl.scrollTop = savedScrollTop
+}
+
 const formatIP = (ip) => {
     if (!ip || !ip.includes(':')) return ip  // IPv4, return as-is
     const parts = ip.split(':')
@@ -309,20 +326,24 @@ const formatTime = (packetTimestamp) => {
     return (parseFloat(packetTimestamp) - props.first_packet_time).toFixed(6)
 }
 
+// Load packets immediately when status=finished (even while L7 is still dispatching)
 watch(
     () => [props.status, props.l7_status],
     async ([newStatus, newL7Status]) => {
         if (newStatus === 'finished') {
             if (newL7Status !== 'dispatching') {
-                if(newL7Status === 'finished'){
-                    resetStore()
-                    await initVirtualList()
+                if (newL7Status === 'finished') {
+                    await refreshInPlace()
                 }
             }
             await initVirtualList()
         }
     },
     { immediate: true }
+)
+
+const isFlowHighlightActive = computed(() =>
+    selectedPacket.value != null && selectedPacket.value.flow != null
 )
 
 </script>
@@ -411,7 +432,7 @@ watch(
                                 { 'bg-blue-100': selectedPacket === packet },
                                 { 'opacity-40 cursor-default hover:bg-transparent': packet._placeholder },
                                 { '!bg-yellow-100': jumpHighlight === packet.packet_number },
-                                { 'bg-indigo-100': selectedPacket?.flow !== null && selectedPacket?.flow === packet.flow }
+                                { 'bg-indigo-100': isFlowHighlightActive && selectedPacket.flow === packet.flow }
                             ]"
                         >
                             <div class="text-slate-400">{{ packet.packet_number }}</div>

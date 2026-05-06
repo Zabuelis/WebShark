@@ -26,7 +26,6 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
-            'rateLimit' => EnsureRateLimiting::class,
             'analysis.exists' => EnsureAnalysisExists::class,
         ]);
     })
