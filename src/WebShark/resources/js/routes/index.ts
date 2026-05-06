@@ -1,7 +1,6 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../wayfinder'
-/**
-* @see \Laravel\Fortify\Http\Controllers\AuthenticatedSessionController::login
-* @see vendor/laravel/fortify/src/Http/Controllers/AuthenticatedSessionController.php:47
+import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../wayfinder'
+Http/Controllers/AuthenticatedSessionController.php:47
 * @route '/login'
 */
 export const login = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
