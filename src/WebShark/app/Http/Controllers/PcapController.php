@@ -295,6 +295,7 @@ class PcapController extends Controller
                     $value = "%{$value}%";
                     // There are special cases where filtering takes up more than 1 column and needs to be aggregated.
                     if($filter == 'proto == '){
+                        $value = strtoupper($value);
                         $queryBuilder->where(function ($q) use ($value) {
                             $q->orWhere('l3_protocol', 'like', $value);
                             $q->orWhere('l4_protocol', 'like', $value);
