@@ -243,7 +243,7 @@ watch(
         <div class="flex flex-1 overflow-hidden">
 
             <!-- For the packets tab -->
-            <PacketList  v-if="activeTab === 'packets'"  :url="`/pcap/analysis/${props.id}/packets`" :status="props.status" :l7_status="props.l7_status" />
+            <PacketList  v-if="activeTab === 'packets'" :first_packet_time="props.first_packet_time" :url="`/pcap/analysis/${props.id}/packets`" :status="props.status" :l7_status="props.l7_status" />
 
             <!-- For the overview tab -->
             <div v-else-if="activeTab === 'overview'" class="flex-1 overflow-y-auto p-8 bg-slate-50">
@@ -306,10 +306,7 @@ watch(
             </div>
 
             <!-- For the conversations tab -->
-            <div v-else-if="activeTab === 'conversations'" class="flex-1 p-8">
-                <h2 class="text-2xl font-bold text-slate-900 mb-4">Network Conversations</h2>
-                <p class="text-slate-500 italic">Find out who is talking to whom</p>
-            </div>
+            <PacketList  v-if="activeTab === 'conversations'" :first_packet_time="props.first_packet_time" :url="`/pcap/analysis/${props.id}/flows`" :status="props.status" :l7_status="props.l7_status" />
 
 
         </div>

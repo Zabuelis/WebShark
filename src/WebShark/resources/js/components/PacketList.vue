@@ -6,6 +6,7 @@ const props = defineProps({
     url: String,
     status: String,
     l7_status: String,
+    first_packet_time: Number,
 })
 
 const selectedPacket = ref(null)
@@ -409,7 +410,8 @@ watch(
                                 'packet-row grid gap-x-4 px-6 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono',
                                 { 'bg-blue-100': selectedPacket === packet },
                                 { 'opacity-40 cursor-default hover:bg-transparent': packet._placeholder },
-                                { '!bg-yellow-100': jumpHighlight === packet.packet_number }
+                                { '!bg-yellow-100': jumpHighlight === packet.packet_number },
+                                { 'bg-indigo-100': selectedPacket?.flow !== null && selectedPacket?.flow === packet.flow }
                             ]"
                         >
                             <div class="text-slate-400">{{ packet.packet_number }}</div>

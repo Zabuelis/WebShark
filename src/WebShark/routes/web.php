@@ -21,16 +21,14 @@ Route::middleware('rateLimit')->group(function () {
 });
 
 // Route to display packet data
-Route::get('/pcap/analysis/{id}', [PcapController::class, 'show'])
-    ->middleware('analysis.exists')
-    ->name('pcap.status');
+Route::middleware('analysis.exists')->group(function () {
 
-Route::get('/pcap/analysis/{id}/packets', [PcapController::class, 'packets'])
-    ->middleware('analysis.exists')
-    ->name('pcap.packets');
+    Route::controller(PcapController::class)->group(function () {
+        Route::get('/pcap/analysis/{id}', 'show')->name('pcap.status');
+        Route::get('/pcap/analysis/{id}/packets', 'packets')->name('pcap.packets');
+        Route::get('/pcap/analysis/{id}/flows', 'flows')->name('pcap.flows');
+    });
+});
 
-Route::get('/pcap/analysis/{id}/search', [PcapController::class, 'search'])
-    ->middleware('analysis.exists')
-    ->name('pcap.search');
 
 require __DIR__ . '/settings.php';

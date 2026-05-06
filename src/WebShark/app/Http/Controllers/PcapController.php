@@ -182,15 +182,7 @@ class PcapController extends Controller
         $queryBuilder = Packet::where('analysis_id', $id);
 
         if ($query !== '') {
-            $term = "%{$query}%";
-    
-            $queryBuilder->where(function ($q) use ($term) {
-                $q->where('src_ip', 'like', $term)
-                ->orWhere('dst_ip', 'like', $term)
-                ->orWhere('l3_protocol', 'like', $term)
-                ->orWhere('l4_protocol', 'like', $term)
-                ->orWhereRaw("l7_attributes->>'Protocol' LIKE '{$term}'");
-            });
+            $this->buildFilterQuery($queryBuilder, $query);
         }
 
         $total = $queryBuilder->count();
@@ -210,6 +202,7 @@ class PcapController extends Controller
                 'src_port',
                 'dst_port',
                 'tcp_flag',
+                'flow',
                 'tcp_window',
                 'tcp_seq_number',
                 'tcp_ack_number',
@@ -224,6 +217,73 @@ class PcapController extends Controller
             'per_page' => $perPage,
             'total_pages' => (int) ceil($total / $perPage),
         ]);
+    }
+
+    // JSON for virtual-scrolling flows
+    public function flows(Request $request, string $id){
+        $job = AnalysisJob::where('analysis_id', $id)->firstOrFail();
+
+        if ($job->status !== 'finished') {
+            return response()->json(['error' => 'Analysis not complete.'], 409);
+        }
+
+        $perPage = min((int) $request->query('per_page', 100), 500);
+        $page = max((int) $request->query('page', 1), 1);
+        $query = trim($request->query('q', ''));
+
+        $queryBuilder = Packet::where('analysis_id', $id)->where('l4_protocol', 'TCP')->whereNotNull('flow');
+
+        if ($query !== '') {
+            $this->buildFilterQuery($queryBuilder, $query);
+            $queryBuilder->orWhere('flow', 'like', "%{$query}%");
+        }
+
+        $total = $queryBuilder->count();
+
+        $packets = $queryBuilder
+            ->orderBy('flow', 'asc')
+            ->orderBy('packet_number', 'asc')
+            ->forPage($page, $perPage)
+            ->get([
+                'packet_id',
+                'packet_number',
+                'timestamp',
+                'l3_protocol',
+                'l4_protocol',
+                'l7_attributes',
+                'src_ip',
+                'dst_ip',
+                'src_port',
+                'dst_port',
+                'flow',
+                'tcp_flag',
+                'tcp_window',
+                'tcp_seq_number',
+                'tcp_ack_number',
+                'captured_packet_length',
+                'raw_hex',
+            ]);
+
+        return response()->json([
+            'data' => $packets,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => (int) ceil($total / $perPage),
+        ]);
+    }
+
+    private function buildFilterQuery($queryBuilder, $query){
+        $term = "%{$query}%";
+    
+        $queryBuilder->where(function ($q) use ($term) {
+            $q->where('src_ip', 'like', $term)
+            ->orWhere('dst_ip', 'like', $term)
+            ->orWhere('l3_protocol', 'like', $term)
+            ->orWhere('l4_protocol', 'like', $term)
+            ->orWhereRaw("l7_attributes->>'Protocol' LIKE '{$term}'");
+        });
+
     }
 
     /**
