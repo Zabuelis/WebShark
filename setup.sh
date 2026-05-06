@@ -70,7 +70,7 @@ sudo sysctl -p
 sudo docker compose --env-file src/WebShark/.env up -d --build
 
 sudo docker exec webshark-app composer install
-sudo docker compose --env-file src/WebShark/.env run -T --rm node npm install
+sudo docker compose --env-file src/WebShark/.env run -T --rm node npm install < /dev/null
 sudo docker compose --env-file src/WebShark/.env up -d --build
 sleep 5
 sudo docker exec webshark-node npm install
