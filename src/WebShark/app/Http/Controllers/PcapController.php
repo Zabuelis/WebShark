@@ -180,10 +180,11 @@ class PcapController extends Controller
         $perPage = min((int) $request->query('per_page', 100), 500);
         $page = max((int) $request->query('page', 1), 1);
         $query = trim($request->query('q', ''));
+        $query = explode("&&", $query);
 
         $queryBuilder = Packet::where('analysis_id', $id);
 
-        if ($query !== '') {
+        if (!empty($query) && $query[0] != '') {
             $this->buildFilterQuery($queryBuilder, $query);
         }
 
@@ -232,12 +233,12 @@ class PcapController extends Controller
         $perPage = min((int) $request->query('per_page', 100), 500);
         $page = max((int) $request->query('page', 1), 1);
         $query = trim($request->query('q', ''));
+        $query = explode("&&", $query);
 
         $queryBuilder = Packet::where('analysis_id', $id)->where('l4_protocol', 'TCP')->whereNotNull('flow');
 
-        if ($query !== '') {
+        if (!empty($query) && $query[0] != '') {
             $this->buildFilterQuery($queryBuilder, $query);
-            $queryBuilder->orWhere('flow', 'like', "%{$query}%");
         }
 
         $total = $queryBuilder->count();
@@ -275,17 +276,36 @@ class PcapController extends Controller
         ]);
     }
 
+    // Build a multiple condition filter
     private function buildFilterQuery($queryBuilder, $query){
-        $term = "%{$query}%";
-    
-        $queryBuilder->where(function ($q) use ($term) {
-            $q->where('src_ip', 'like', $term)
-            ->orWhere('dst_ip', 'like', $term)
-            ->orWhere('l3_protocol', 'like', $term)
-            ->orWhere('l4_protocol', 'like', $term)
-            ->orWhereRaw("l7_attributes->>'Protocol' LIKE '{$term}'");
-        });
-
+        // Key needs to match the actual column in the DB
+        $filters = [
+            'src_ip' => 'ip.src == ',
+            'dst_ip' => 'ip.dst == ',
+            'dst_port' => 'port.dst == ',
+            'src_port' => 'port.src == ',
+            'proto' => 'proto == ',
+            'flow' => 'tcp.flow == ',
+        ];
+        foreach($query as $term){
+            $term = trim($term);
+            foreach($filters as $column => $filter){
+                if(str_contains($term, $filter)){
+                    $value = str_replace($filter, '', $term);
+                    $value = "%{$value}%";
+                    // There are special cases where filtering takes up more than 1 column and needs to be aggregated.
+                    if($filter == 'proto == '){
+                        $queryBuilder->where(function ($q) use ($value) {
+                            $q->orWhere('l3_protocol', 'like', $value);
+                            $q->orWhere('l4_protocol', 'like', $value);
+                            $q->orWhere('l7_attributes->Protocol', 'like', $value);
+                        });
+                    } else {
+                        $queryBuilder->where($column, 'like', $value);
+                    }
+                }
+            }
+        }
     }
 
     /**

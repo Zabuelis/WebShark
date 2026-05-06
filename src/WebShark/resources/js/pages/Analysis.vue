@@ -29,7 +29,6 @@ const props = defineProps({
     total_flows: Number,
 })
 
-console.log(props.total_flows)
 let expiryInterval = null
 const totalItems = ref(props.total_packets ?? 0)
 
