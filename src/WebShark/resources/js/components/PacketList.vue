@@ -339,7 +339,7 @@ watch(
                 <input 
                     v-model="filterText" 
                     type="text" 
-                    placeholder="Search by IP, Protocol (e.g. 192.168 or TCP)..." 
+                    placeholder="Filter by ip.src, proto, etc. (e.g. ip.src == 192.168.1.1 && proto == TCP)"
                     class="w-full pl-10 pr-4 py-2 bg-slate-100 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
                 />
                 <!-- Spinner inside the search box -->
