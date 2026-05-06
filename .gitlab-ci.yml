@@ -85,6 +85,9 @@ deploy_to_production:
     - docker exec webshark-app php artisan route:cache
     - docker exec webshark-app php artisan view:cache
 
+    - $COMPOSE_CMD down
+    - $COMPOSE_CMD up -d
+    - sleep 10
     - echo "Application is LIVE at ${APP_URL}"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
