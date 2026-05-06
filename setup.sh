@@ -68,14 +68,14 @@ sudo sysctl -p
 
 sudo docker compose --env-file src/WebShark/.env up -d --build
 
-sudo docker exec -it webshark-app composer install
+sudo docker exec webshark-app composer install
 sudo docker compose --env-file src/WebShark/.env run --rm node npm install
 sudo docker compose --env-file src/WebShark/.env up -d --build
-sudo docker exec -it webshark-node npm install
+sudo docker exec webshark-node npm install
 
-sudo docker exec -it webshark-app php artisan key:generate
-sudo docker exec -it webshark-app php artisan storage:link
-sudo docker exec -it webshark-app php artisan migrate
+sudo docker exec webshark-app php artisan key:generate
+sudo docker exec webshark-app php artisan storage:link
+sudo docker exec webshark-app php artisan migrate
 
 sudo docker compose --env-file src/WebShark/.env down
 sudo docker compose --env-file src/WebShark/.env up -d --build
