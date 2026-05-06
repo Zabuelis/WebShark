@@ -1,6 +1,6 @@
 <script setup>
 import { RecycleScroller } from 'vue-virtual-scroller'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 
 const props = defineProps({
     url: String,
@@ -62,8 +62,6 @@ const detailSections = computed(() => {
         }
     ]
 })
-
-
 
 // For protocol badge colors
 const getProtoColor = (packet) => {
@@ -510,5 +508,11 @@ watch(
             <p>Select a packet to view details</p>
         </div>
     </aside>
-
 </template>
+
+<style scoped>
+.packet-row {
+    height: 36px;
+    grid-template-columns: minmax(60px,0.5fr) minmax(90px,0.8fr) minmax(160px,1.5fr) minmax(160px,1.5fr) 80px 70px 2fr;
+}
+</style>

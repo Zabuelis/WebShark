@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { router, Head, Link } from '@inertiajs/vue3'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
@@ -28,6 +28,7 @@ const props = defineProps({
     size_distribution: Object,
 })
 let expiryInterval = null
+const totalItems = ref(props.total_packets ?? 0)
 
 function startExpiryPolling() {
     if (expiryInterval) return
@@ -96,300 +97,12 @@ const captureDuration = computed(() => {
     return (props.last_packet_time - props.first_packet_time).toFixed(3)
 })
 
-const formatTime = (packetTimestamp) => {
-    if (!packetTimestamp || !props.first_packet_time) return "0.000000"
-    return (parseFloat(packetTimestamp) - props.first_packet_time).toFixed(6)
-}
-
-const selectedPacket = ref(null)
-
 const activeTab = ref('packets') // Options: 'packets', 'overview', 'conversations'
-
-const detailSections = computed(() => {
-    if (!selectedPacket.value) return []
-    const p = selectedPacket.value
-    return [
-        {
-            title: "Frame",
-            fields: [
-                { label: "ID", value: p.packet_number },
-                { label: "Length", value: `${p.captured_packet_length} bytes` },
-                { label: "Time", value: `${formatTime(p.timestamp)}s` },
-            ]
-        },
-        {
-            title: "Network Layer",
-            fields: [
-                { label: "L3 Protocol", value: p.l3_protocol },
-                { label: "Source IP", value: p.src_ip },
-                { label: "Destination IP", value: p.dst_ip },
-            ]
-        },
-        {
-            title: "Transport Layer",
-            fields: [
-                { label: "L4 Protocol", value: p.l4_protocol },
-                { label: "Source Port", value: p.src_port },
-                { label: "Dest Port", value: p.dst_port },
-
-                // TCP specific fields
-                ...(p.l4_protocol === "TCP" ? [
-                    { label: "TCP Flags", value: p.tcp_flag },
-                    { label: "TCP Window", value: p.tcp_window },
-                    { label: "TCP SEQ Number", value: p.tcp_seq_number },
-                    { label: "TCP ACK Number", value: p.tcp_ack_number },
-                ] : [])
-            ]
-        },
-        {
-            title: "Application Layer",
-            fields: [
-
-                // Dynamic L7 attributes when present
-                ...(p.l7_attributes
-                    ? Object.entries(p.l7_attributes)
-                        .map(([attribute_name, attribute_value]) =>
-                            attribute_value !== "" ? { label: attribute_name, value: attribute_value } : null
-                        )
-                        .filter(Boolean)
-                    : [])
-            ]
-        }
-    ]
-})
-
-// For protocol badge colors
-const getProtoColor = (packet) => {
-    const colors = {
-        'TCP': 'bg-blue-100 text-blue-700 border-blue-200',
-        'UDP': 'bg-purple-100 text-purple-700 border-purple-200',
-        'ICMP': 'bg-pink-100 text-pink-700 border-pink-200',
-        'TLS': 'bg-yellow-100 text-yellow-700 border-yellow-200',
-        'HTTP': 'bg-indigo-100 text-indigo-700 border-indigo-200',
-        'DNS': 'bg-pink-100 text-pink-700 border-pink-200',
-        'DHCP': 'bg-teal-100 text-teal-700 border-teal-200',
-        'SSH': 'bg-sky-100 text-sky-700 border-sky-200'
-    }
-    if (packet?.l7_attributes?.Protocol) return colors[packet.l7_attributes.Protocol] || 'bg-slate-100 text-slate-700 border-slate-200'
-    if (packet?.l4_protocol) return colors[packet.l4_protocol] || 'bg-slate-100 text-slate-700 border-slate-200'
-    return 'bg-slate-100 text-slate-700 border-slate-200'
-}
-
-// Return the highest protocol to display
-const highestLevelProtocol = (packet) => {
-    if (packet?.l7_attributes?.Protocol) return packet.l7_attributes.Protocol
-    if (packet?.l4_protocol) return packet.l4_protocol
-    if (packet?.l3_protocol) return packet.l3_protocol
-    return ""
-}
-
-// Protocol specific for quick preview in the INFO column
-const protocolSpecificInformation = (packet) => {
-    switch (packet.l7_attributes?.Protocol) {
-        case "TLS":
-            return packet.l7_attributes.Version + " - " + packet.l7_attributes.Encrypted_Protocol
-        case "DHCP":
-            return packet.l7_attributes.DHCP_Message_Type + " - " + packet.l7_attributes.Transaction_ID
-        case "DNS":
-            return "Transaction ID: " + packet.l7_attributes.Transaction_ID + " - " + packet.l7_attributes.Type + " - Flags: " + packet.l7_attributes.Flags
-        case "HTTP":
-            if (packet.l7_attributes.Request_Method === "GET") {
-                return packet.l7_attributes.Request_Method + " " + packet.l7_attributes.Full_URI + " " + packet.l7_attributes.Version
-            } else if (packet.l7_attributes.Protocol) {
-                return packet.l7_attributes.Version + " " + packet.l7_attributes.Response_Phrase + " " + packet.l7_attributes.Response_Code
-            }
-            break
-        case "SSH":
-            return packet.l7_attributes.SSH_Direction
-    }
-    switch (packet.l4_protocol) {
-        case "TCP":
-            return packet.src_port + " -> " + packet.dst_port + " Flags=" + packet.tcp_flag + " Win=" + packet.tcp_window
-        case "UDP":
-            return packet.src_port + " -> " + packet.dst_port
-    }
-    return ""
-}
-
-// Function to handle the click
-function handlePacketClick(packet) {
-    if (packet._placeholder) return
-    selectedPacket.value = selectedPacket.value === packet ? null : packet
-}
 
 // Calculate total MB from packets
 const totalMB = computed(() => {
     if (!props.total_bytes) return "0.00"
     return (props.total_bytes / (1024 * 1024)).toFixed(2)
-})
-
-// Virtual scroll data layer
-const PER_PAGE = 100
-const WINDOW_SIZE = 5
-const ROW_HEIGHT = 36
-
-const filterText = ref('')
-const isSearchActive = computed(() => filterText.value.trim() !== '')
-
-const pageStore = new Map()
-const loadedPages = ref(new Set())
-const loadingPages = new Set()
-
-const totalItems = ref(props.total_packets ?? 0)
-const totalPages = ref(0)
-
-const items = ref([])
-const isSearching = ref(false)
-
-let searchDebounceTimer = null
-
-function resetStore() {
-    pageStore.clear()
-    loadedPages.value = new Set()
-    loadingPages.clear()
-    totalItems.value = 0
-    totalPages.value = 0
-    items.value = []
-}
-
-function rebuildList() {
-    const out = []
-
-    for (let p = 1; p <= totalPages.value; p++) {
-        const rows = pageStore.get(p)
-
-        if (rows) {
-            out.push(...rows)
-        } else {
-            const start = (p - 1) * PER_PAGE + 1
-            const end = Math.min(p * PER_PAGE, totalItems.value)
-
-            for (let i = start; i <= end; i++) {
-                out.push({ _placeholder: true, packet_number: i })
-            }
-        }
-    }
-
-    items.value = out
-}
-
-async function fetchPage(page) {
-    if (page < 1) return
-    if (totalPages.value > 0 && page > totalPages.value) return
-    if (loadedPages.value.has(page)) return
-    if (loadingPages.has(page)) return
-
-    loadingPages.add(page)
-
-    if (isSearchActive.value) {
-        isSearching.value = true
-    }
-
-    try {
-        const url = new URL(`/pcap/analysis/${props.id}/packets`, window.location.origin)
-
-        url.searchParams.set('page', page)
-        url.searchParams.set('per_page', PER_PAGE)
-
-        if (isSearchActive.value) {
-            url.searchParams.set('q', filterText.value.trim())
-        }
-
-        const response = await fetch(url)
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
-
-        const json = await response.json()
-
-        totalItems.value = json.total
-        totalPages.value = json.total_pages ?? 1
-
-        pageStore.set(page, json.data)
-        loadedPages.value = new Set([...loadedPages.value, page])
-
-        evictDistantPages(page)
-        rebuildList()
-
-    } catch (e) {
-        console.error('Fetch failed', page, e)
-    } finally {
-        loadingPages.delete(page)
-        isSearching.value = false
-    }
-}
-
-function evictDistantPages(currentPage) {
-    const half = Math.floor(WINDOW_SIZE / 2)
-    const lo = currentPage - half
-    const hi = currentPage + half
-
-    for (const p of loadedPages.value) {
-        if (p < lo || p > hi) {
-            pageStore.delete(p)
-
-            const next = new Set(loadedPages.value)
-            next.delete(p)
-            loadedPages.value = next
-        }
-    }
-    rebuildList()
-}
-
-function onScroll(event) {
-    const scrollTop = event.target.scrollTop
-    const rowIndex = Math.floor(scrollTop / ROW_HEIGHT)
-    const anchorPage = Math.floor(rowIndex / PER_PAGE) + 1
-
-    fetchPage(anchorPage)
-    fetchPage(anchorPage + 1)
-    if (anchorPage > 1) fetchPage(anchorPage - 1)
-}
-
-// Jump to packet
-const scrollerRef = ref(null)
-const jumpInput = ref('')
-const jumpError = ref('')
-const isJumping = ref(false)
-const jumpHighlight = ref(null)
-
-async function jumpToPacket() {
-    const n = parseInt(jumpInput.value, 10)
-
-    if (!n || n < 1 || (totalItems.value > 0 && n > totalItems.value)) {
-        jumpError.value = `Enter a number between 1 and ${totalItems.value.toLocaleString()}`
-        return
-    }
-
-    jumpError.value = ''
-    isJumping.value = true
-
-    const targetPage = Math.ceil(n / PER_PAGE)
-    await fetchPage(targetPage)
-    fetchPage(targetPage - 1)
-    fetchPage(targetPage + 1)
-
-    await nextTick()
-
-    scrollerRef.value?.scrollToItem(n - 1)
-
-    jumpHighlight.value = n
-    setTimeout(() => { jumpHighlight.value = null }, 2000)
-
-    isJumping.value = false
-}
-
-watch(filterText, (val) => {
-    clearTimeout(searchDebounceTimer)
-
-    resetStore()
-
-    if (val.trim() === '') {
-        initVirtualList()
-        return
-    }
-
-    searchDebounceTimer = setTimeout(() => {
-        fetchPage(1)
-    }, 300)
 })
 
 // Polling and init
@@ -417,11 +130,6 @@ function stopPolling() {
     }
 }
 
-async function initVirtualList() {
-    await fetchPage(1)
-    fetchPage(2)
-}
-
 watch(
     () => [props.status, props.l7_status],
     async ([newStatus, newL7Status]) => {
@@ -430,14 +138,10 @@ watch(
         }
         if (newStatus === 'finished') {
             if (newL7Status !== 'dispatching') {
-                if(newL7Status === 'finished'){
-                    resetStore()
-                    await initVirtualList()
-                }
                 stopPolling()
+                totalItems.value = props.total_packets
                 startExpiryPolling()
             }
-            await initVirtualList()
         }
         if (newStatus === 'failed') {
             stopPolling()
@@ -445,14 +149,6 @@ watch(
     },
     { immediate: true }
 )
-
-const formatIP = (ip) => {
-    if (!ip || !ip.includes(':')) return ip  // IPv4, return as-is
-    const parts = ip.split(':')
-    if (parts.length <= 4) return ip  // Short enough already
-    return `${parts[0]}:${parts[1]}:…:${parts[parts.length - 2]}:${parts[parts.length - 1]}`
-}
-
 </script>
 
 
@@ -547,11 +243,7 @@ const formatIP = (ip) => {
         <div class="flex flex-1 overflow-hidden">
 
             <!-- For the packets tab -->
-            <template v-if="activeTab === 'packets'">
-
-                <PacketList :url="`/pcap/analysis/${props.id}/packets`" :status="props.status" :l7_status="props.l7_status" />
-
-            </template>
+            <PacketList  v-if="activeTab === 'packets'"  :url="`/pcap/analysis/${props.id}/packets`" :status="props.status" :l7_status="props.l7_status" />
 
             <!-- For the overview tab -->
             <div v-else-if="activeTab === 'overview'" class="flex-1 overflow-y-auto p-8 bg-slate-50">
@@ -643,9 +335,3 @@ const formatIP = (ip) => {
     </div>
 
 </template>
-<style scoped>
-.packet-row {
-    height: 36px;
-    grid-template-columns: minmax(60px,0.5fr) minmax(90px,0.8fr) minmax(160px,1.5fr) minmax(160px,1.5fr) 80px 70px 2fr;
-}
-</style>
