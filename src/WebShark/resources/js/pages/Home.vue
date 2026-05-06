@@ -1,8 +1,14 @@
 <script setup>
-    import { ref } from 'vue'
+    import { ref, onMounted } from 'vue'
     import { Head, useForm, usePage } from '@inertiajs/vue3'
     import NavBar from '../components/NavBar.vue'
     import Footer from '../components/Footer.vue'
+
+    const props = defineProps({
+        cookieError: String
+    })
+
+    const localCookieError = ref(props.cookieError);
 
     // Information related to the page that comes from inertia (flash messages, csfr_token, etc.)
     const pageMessages = usePage()
@@ -13,6 +19,17 @@
 
     const form = useForm({
         'pcap_file' : null
+    })
+
+    // Check for cookies on mount
+    onMounted(() => {
+        // If cookies are off, or if the URL has our error param
+        const cookiesFunctional = checkCookies();
+        const hasErrorParam = new URLSearchParams(window.location.search).get('error') === 'cookies_required';
+        
+        if (!cookiesFunctional || hasErrorParam) {
+            localCookieError.value = "Cookies are required to analyze files. Please enable them and refresh the page.";
+        }
     })
 
     function toggleActive(){
@@ -34,10 +51,17 @@
         }
     }
 
-    function submit(){
+    function submit() {
+        // Re-verify before submission
+        if (!checkCookies()) {
+            localCookieError.value = "Cannot submit: Cookies are disabled in your browser.";
+            window.scrollTo({ top: 0, behavior: 'smooth' }); // Ensure they see the error
+            return;
+        }
+
         form.post('/file/uploadPcap', {
-            _token : pageMessages.props.csfr_token,
-            forceFormData: true,    // Forms including files should be converted to FormData objects
+            _token: pageMessages.props.csfr_token,
+            forceFormData: true,
         })
     }
 
@@ -47,6 +71,22 @@
         form.pcap_file = null
     };
 
+    const checkCookies = () => {
+    // Check the standard navigator property first
+    if (!navigator.cookieEnabled) return false;
+
+    // Create a test cookie
+    try {
+        document.cookie = "cookietest=1; SameSite=Lax";
+        const ret = document.cookie.indexOf("cookietest=") !== -1;
+        // Delete the test cookie
+        document.cookie = "cookietest=1; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+        return ret;
+    } catch (e) {
+        return false;
+    }
+}
+
 </script>
 
 <template>
@@ -54,6 +94,12 @@
     <NavBar />
 
     <div class = "flex-auto min-h-screen">
+
+        <!-- Cookie Specific Error -->
+        <div v-if="localCookieError" class="bg-orange-100 border border-orange-400 text-center text-orange-700 px-4 py-3 rounded relative" role="alert">
+            <strong class="font-bold">{{ localCookieError }}</strong>
+        </div>
+
         <!-- Feedback messages -->
         <div v-if="pageMessages.props.flash.error" class="bg-red-100 border border-red-400 text-center text-red-700 px-4 py-3 rounded relative" role="alert">
             <strong class="font-bold">{{ pageMessages.props.flash.error }}</strong>

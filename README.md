@@ -125,6 +125,27 @@ sudo docker compose --env-file src/WebShark/.env down
 ```
 
 ---
+# Usability Guide
+
+## 1. Filters
+
+For quicker packet search this tool supports filtering. Filters are finite, however they can be combined to create more strict filtering conditions. 
+
+1. Filtering example:
+   - Filter chaining can be performed by using && (and) operator. This operator combines 2 different filters as *A AND B AND C* condition.
+   - > ip.src == 192.168.1.1 && proto == TLS && ip.dst == 18.97.36.54
+2. Available filters
+   - Filters must follow the presented pattern or else will return incorrect or no result.
+   - | Filter | Action |
+     |--------|--------|
+     | ip.src == | Filters results based on specified source IP address. | 
+     | ip.dst == | Filters results based on specifies destination IP address. |
+     | port.src == | Filters results based on specified source PORT. |
+     | port.dst == | Filters results based on specified destination PORT. |
+     | proto == | Filters results based on specified protocol. This filter is not case sensitive so it will accept both lowercase and uppercase values. |
+     | tcp.flow == | Filters results based on specified TCP flow. TCP flows are reassembled during analysis process start from 0. |
+
+---
 
 # Debugging & Maintenance
 
@@ -136,11 +157,18 @@ sudo docker compose --env-file src/WebShark/.env exec db psql -U webshark -d web
 ## To see Valkey
 ```bash
 sudo docker compose --env-file src/WebShark/.env exec valkey valkey-cli KEYS "*"
+
+sudo docker compose --env-file src/WebShark/.env exec valkey valkey-cli -n 1 KEYS "*"
 ```
 
-## To see Cron
+## To see logs
 ```bash
+# everything
+sudo docker compose --env-file src/WebShark/.env logs -f
+#  cron
 sudo docker compose --env-file src/WebShark/.env logs -f cron
+# audit
+tail -f src/WebShark/storage/logs/audit.log
 ```
 
 ## To run tests
@@ -151,4 +179,9 @@ sudo docker exec -it webshark-app php artisan test
 ## Scalability for queue-worker
 ```bash
 sudo docker compose --env-file src/WebShark/.env up -d --scale queue-worker=3
+```
+
+## Reset all rate limits
+```bash
+sudo docker exec -it webshark-app php artisan cache:clear
 ```

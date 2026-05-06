@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use App\Models\AnalysisJob;
 use App\Models\Packet;
 use App\Jobs\AnalyzePcap;
-use App\Models\IpMarker;
 use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
@@ -25,10 +24,19 @@ class PcapController extends Controller
         ]);
 
         $sessionID = session()->getId();
-        $currentIP = $request->ip();
+        $file = $request->file('pcap_file');
 
         // Laravel does not distinguish mime type pcap,pcapng and returns an error therefore, a manual check is needed
         if(!in_array($request->file('pcap_file')->getClientOriginalExtension(), ['pcap', 'pcapng'])){
+
+            Log::channel('audit')->warning('UPLOAD_FAILED_EXTENSION', [
+                'ip' => $request->ip(),
+                'session' => $sessionID,
+                'file_name' => $file->getClientOriginalName(),
+                'extension' => $file->getClientOriginalExtension(),
+                'size_bytes' => $file->getSize()
+            ]);
+
             return redirect()->back()->with('error', 'File upload failed, incorrect file extension');
         }
 
@@ -39,16 +47,15 @@ class PcapController extends Controller
             $rebuiltFileName = now()->format('Y-m-d_h:i:s') . '_' . $sessionID . '_' . $fileName;
             $request->file('pcap_file')->storeAs('pcap', $rebuiltFileName);
 
-            // 1. Dispatch job & log to DB
+            // Dispatch job & log to DB
             $uuid = $this->handleNewJob($rebuiltFileName);
 
-            // 2. Increment analyze_counter for the current user
-            $ipMarker = IpMarker::where('ip_address', $currentIP)->first();
-            if ($ipMarker) {
-                $ipMarker->update([
-                    'analyze_counter' => $ipMarker->analyze_counter + 1,
-                ]);
-            }
+            Log::channel('audit')->info('UPLOAD_SUCCESS', [
+                'ip' => $request->ip(),
+                'session' => $sessionID,
+                'file' => $fileName,
+                'size_bytes' => $file->getSize()
+            ]);
 
             return redirect()->route('pcap.status', ['id' => $uuid])->with('success', 'File uploaded successfully, analysis started.');
 
@@ -91,6 +98,7 @@ class PcapController extends Controller
             'first_packet_time' => 0,
             'last_packet_time' => 0,
             'total_packets' => 0,
+            'total_flows' => 0,
         ];
 
         // Check the status of the job
@@ -111,6 +119,7 @@ class PcapController extends Controller
         // If we are here, everything went well
         $props['total_packets'] = Packet::where('analysis_id', $id)->count();
         $props['total_bytes']   = (int) Packet::where('analysis_id', $id)->sum('captured_packet_length');
+        $props['total_flows'] = Packet::where('analysis_id', $id)->whereNotNull('flow')->distinct('flow')->count();
 
         $first = Packet::where('analysis_id', $id)->orderBy('packet_number', 'asc')->value('timestamp');
         $last  = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->value('timestamp');
@@ -178,19 +187,12 @@ class PcapController extends Controller
         $perPage = min((int) $request->query('per_page', 100), 500);
         $page = max((int) $request->query('page', 1), 1);
         $query = trim($request->query('q', ''));
+        $query = explode("&&", $query);
 
         $queryBuilder = Packet::where('analysis_id', $id);
 
-        if ($query !== '') {
-            $term = "%{$query}%";
-    
-            $queryBuilder->where(function ($q) use ($term) {
-                $q->where('src_ip', 'like', $term)
-                ->orWhere('dst_ip', 'like', $term)
-                ->orWhere('l3_protocol', 'like', $term)
-                ->orWhere('l4_protocol', 'like', $term)
-                ->orWhereRaw("l7_attributes->>'Protocol' LIKE '{$term}'");
-            });
+        if (!empty($query) && $query[0] != '') {
+            $this->buildFilterQuery($queryBuilder, $query);
         }
 
         $total = $queryBuilder->count();
@@ -210,6 +212,7 @@ class PcapController extends Controller
                 'src_port',
                 'dst_port',
                 'tcp_flag',
+                'flow',
                 'tcp_window',
                 'tcp_seq_number',
                 'tcp_ack_number',
@@ -224,6 +227,93 @@ class PcapController extends Controller
             'per_page' => $perPage,
             'total_pages' => (int) ceil($total / $perPage),
         ]);
+    }
+
+    // JSON for virtual-scrolling flows
+    public function flows(Request $request, string $id){
+        $job = AnalysisJob::where('analysis_id', $id)->firstOrFail();
+
+        if ($job->status !== 'finished') {
+            return response()->json(['error' => 'Analysis not complete.'], 409);
+        }
+
+        $perPage = min((int) $request->query('per_page', 100), 500);
+        $page = max((int) $request->query('page', 1), 1);
+        $query = trim($request->query('q', ''));
+        $query = explode("&&", $query);
+
+        $queryBuilder = Packet::where('analysis_id', $id)->where('l4_protocol', 'TCP')->whereNotNull('flow');
+
+        if (!empty($query) && $query[0] != '') {
+            $this->buildFilterQuery($queryBuilder, $query);
+        }
+
+        $total = $queryBuilder->count();
+
+        $packets = $queryBuilder
+            ->orderBy('flow', 'asc')
+            ->orderBy('packet_number', 'asc')
+            ->forPage($page, $perPage)
+            ->get([
+                'packet_id',
+                'packet_number',
+                'timestamp',
+                'l3_protocol',
+                'l4_protocol',
+                'l7_attributes',
+                'src_ip',
+                'dst_ip',
+                'src_port',
+                'dst_port',
+                'flow',
+                'tcp_flag',
+                'tcp_window',
+                'tcp_seq_number',
+                'tcp_ack_number',
+                'captured_packet_length',
+                'raw_hex',
+            ]);
+
+        return response()->json([
+            'data' => $packets,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total_pages' => (int) ceil($total / $perPage),
+        ]);
+    }
+
+    // Build a multiple condition filter
+    private function buildFilterQuery($queryBuilder, $query){
+        // Key needs to match the actual column in the DB
+        $filters = [
+            'src_ip' => 'ip.src == ',
+            'dst_ip' => 'ip.dst == ',
+            'dst_port' => 'port.dst == ',
+            'src_port' => 'port.src == ',
+            'proto' => 'proto == ',
+            'flow' => 'tcp.flow == ',
+        ];
+        foreach($query as $term){
+            $term = trim($term);
+            foreach($filters as $column => $filter){
+                if(str_contains($term, $filter)){
+                    $value = str_replace($filter, '', $term);
+                    $value = "%{$value}%";
+                    // There are special cases where filtering takes up more than 1 column and needs to be aggregated.
+                    if($filter == 'proto == '){
+                        $value = strtoupper($value);
+                        $queryBuilder->where(function ($q) use ($value) {
+                            $q->orWhere('l3_protocol', 'like', $value);
+                            $q->orWhere('l4_protocol', 'like', $value);
+                            $q->orWhere('l7_attributes->Protocol', 'like', $value);
+                        });
+                    } else {
+                        $queryBuilder->where($column, 'like', $value);
+                    }
+                }
+            }
+        }
     }
 
     /**
