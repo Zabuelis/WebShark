@@ -23,8 +23,11 @@
 
     // Check for cookies on mount
     onMounted(() => {
-        // If navigator says cookies are off, or if the URL has our error param
-        if (!navigator.cookieEnabled || new URLSearchParams(window.location.search).get('error') === 'cookies_required') {
+        // If cookies are off, or if the URL has our error param
+        const cookiesFunctional = checkCookies();
+        const hasErrorParam = new URLSearchParams(window.location.search).get('error') === 'cookies_required';
+        
+        if (!cookiesFunctional || hasErrorParam) {
             localCookieError.value = "Cookies are required to analyze files. Please enable them and refresh the page.";
         }
     })
@@ -48,15 +51,17 @@
         }
     }
 
-    function submit(){
-        if (!navigator.cookieEnabled) {
-            localCookieError.value = "Cannot submit: Cookies are disabled.";
+    function submit() {
+        // Re-verify before submission
+        if (!checkCookies()) {
+            localCookieError.value = "Cannot submit: Cookies are disabled in your browser.";
+            window.scrollTo({ top: 0, behavior: 'smooth' }); // Ensure they see the error
             return;
         }
 
         form.post('/file/uploadPcap', {
-            _token : pageMessages.props.csfr_token,
-            forceFormData: true,    // Forms including files should be converted to FormData objects
+            _token: pageMessages.props.csfr_token,
+            forceFormData: true,
         })
     }
 
@@ -65,6 +70,22 @@
         file.value = null
         form.pcap_file = null
     };
+
+    const checkCookies = () => {
+    // Check the standard navigator property first
+    if (!navigator.cookieEnabled) return false;
+
+    // Create a test cookie
+    try {
+        document.cookie = "cookietest=1; SameSite=Lax";
+        const ret = document.cookie.indexOf("cookietest=") !== -1;
+        // Delete the test cookie
+        document.cookie = "cookietest=1; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+        return ret;
+    } catch (e) {
+        return false;
+    }
+}
 
 </script>
 
