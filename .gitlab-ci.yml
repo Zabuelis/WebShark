@@ -71,15 +71,15 @@ deploy_to_production:
     - $COMPOSE_CMD down --remove-orphans
 
     - $COMPOSE_CMD up -d --build
-    - sleep 5
+    - sleep 10
 
     - docker exec webshark-app composer install --no-interaction --optimize-autoloader --no-dev
     - docker exec webshark-app chmod -R 775 storage bootstrap/cache
     - docker exec webshark-app php artisan storage:link || echo "Already linked"
     - docker exec webshark-app php artisan migrate --force
 
-    - $COMPOSE_CMD run --rm node npm install
-    - $COMPOSE_CMD run --rm node npm run build
+    - $COMPOSE_CMD run -T --rm node npm install
+    - $COMPOSE_CMD run -T --rm node npm run build
 
     - docker exec webshark-app php artisan config:cache
     - docker exec webshark-app php artisan route:cache
