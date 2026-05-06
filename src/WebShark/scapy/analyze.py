@@ -460,7 +460,6 @@ except Exception as e:
 
 # Optional operation (if this fails L3-L4 information will be displayed in the analysis)
 try:
-    sleep(5)
     tshark_process = create_tshark(file_path)
     tshark_stream = create_tshark_stream(tshark_process)
 
