@@ -125,7 +125,7 @@ def handle_http1(packet):
         "Protocol": "HTTP",
         "Version": None,
         "Content_Length": packet.get("http.content_length"),
-        "Payload": bytes.fromhex(packet.get("http.file_data")).decode("utf-8")
+        "Payload": bytes.fromhex(packet.get("http.file_data")).decode("utf-8"),
     }
     if packet.get("http.request.version"):
         http_header.update({"Version": packet.get("http.request.version")})

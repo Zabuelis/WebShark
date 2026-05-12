@@ -90,30 +90,38 @@ const highestLevelProtocol = (packet) => {
 
 // Protocol specific for quick preview in the INFO column
 const protocolSpecificInformation = (packet) => {
-    switch (packet.l7_attributes?.Protocol) {
+    var data = []
+    switch (packet.l7_attributes?.Protocol || packet.l4_protocol) {
         case "TLS":
-            return packet.l7_attributes.Version + " - " + packet.l7_attributes.Encrypted_Protocol
+            data = [packet.l7_attributes.Version, " ", packet.l7_attributes.Encrypted_Protocol]
+            break
         case "DHCP":
-            return packet.l7_attributes.DHCP_Message_Type + " - " + packet.l7_attributes.Transaction_ID
+            data = [packet.l7_attributes.DHCP_Message_Type, " ", packet.l7_attributes.Transaction_ID]
+            break
         case "DNS":
-            return "Transaction ID: " + packet.l7_attributes.Transaction_ID + " - " + packet.l7_attributes.Type + " - Flags: " + packet.l7_attributes.Flags
+            data = ["Transaction ID: ", packet.l7_attributes.Transaction_ID, " ", packet.l7_attributes.Type, " Flags: ", packet.l7_attributes.Flags]
+            break
         case "HTTP":
             if (packet.l7_attributes.Request_Method === "GET") {
-                return packet.l7_attributes.Request_Method + " " + packet.l7_attributes.Full_URI + " " + packet.l7_attributes.Version
+                data = [packet.l7_attributes.Request_Method, " ", packet.l7_attributes.Full_URI, " ", packet.l7_attributes.Version]
+                break
             } else if (packet.l7_attributes.Protocol) {
-                return packet.l7_attributes.Version + " " + packet.l7_attributes.Response_Phrase + " " + packet.l7_attributes.Response_Code
+                data = [packet.l7_attributes.Version, " ", packet.l7_attributes.Response_Phrase, " ", packet.l7_attributes.Response_Code]
+                break
             }
-            break
         case "SSH":
-            return packet.l7_attributes.SSH_Direction
-    }
-    switch (packet.l4_protocol) {
+            data = [packet.l7_attributes.SSH_Direction]
+            break
         case "TCP":
-            return packet.src_port + " -> " + packet.dst_port + " Flags=" + packet.tcp_flag + " Win=" + packet.tcp_window
+            data = [packet.src_port, " -> ", packet.dst_port, " Flags=", packet.tcp_flag, " Win=", packet.tcp_window]
+            break
         case "UDP":
-            return packet.src_port + " -> " + packet.dst_port
+            data = [packet.src_port, " -> ", packet.dst_port]
+            break
     }
-    return ""
+    data = data.filter(Boolean)
+    var data_string = data.join('')
+    return data_string
 }
 
 // Function to handle the click
