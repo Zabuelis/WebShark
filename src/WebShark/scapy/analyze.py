@@ -6,6 +6,7 @@ import json
 from time import sleep
 from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP
 import subprocess
+import csv
 from analyzer_modules import *
 
 # So, in our case we have layers: L3, L4 and L7. Each layer has its own registry.
@@ -23,16 +24,15 @@ tshark_protocols = {
     # DHCPv4 fields
     "dhcp": [ "dhcp.id", "dhcp.ip.client", "dhcp.ip.relay", "dhcp.ip.server", "dhcp.ip.your",  "dhcp.option.dhcp", "dhcp.option.subnet_mask", "dhcp.option.request_list_item"],
     # TLS fields
-    "tls": [ "tls.app_data_proto", "tls.app_data", "tls.record.version", "tls.record.length" ],
+    "tls": [ "tls.app_data_proto", "tls.handshake.type", "tls.record.content_type", "tls.app_data", "tls.record.version", "tls.record.length" ],
     # SSH fields
     "ssh" : [ "ssh.protocol", "ssh.direction", "ssh.encrypted_packet", "ssh.packet_length", "ssh.packet_length_encrypted", "ssh.message_code" ]
 }
 
-# Used to separate fields inside the return of tshark command
-# Unique symbol which will never be encountered in real traffic data.
-field_separator = "\u001f"   # Special ascii character Unit Separator
+# Tshark stream is formatted and read as CSV
+field_separator = ","
 
-# Flow cache dict, stores (src_ip, dst_ip, src_port, dst_port) as a key
+# Flow cache dict, stores (src_ip, dst_ip, src_port, dst_port) tuple as a key
 # Stores id, initiator_key, receiver_key, initiator_fin, receiver_fin as value
 flow_cache = {}
 
@@ -125,8 +125,14 @@ def handle_http1(packet):
         "Protocol": "HTTP",
         "Version": None,
         "Content_Length": packet.get("http.content_length"),
-        "Payload": bytes.fromhex(packet.get("http.file_data")).decode("utf-8"),
     }
+
+    if packet.get("http.file_data") is not None:
+        data = packet.get("http.file_data")
+        data.replace(":", "")
+        data = bytes.fromhex(data).decode("utf-8")
+        http_header["Payload"] = data
+    
     if packet.get("http.request.version"):
         http_header.update({"Version": packet.get("http.request.version")})
         http_header["Request_Method"] = packet.get("http.request.method")
@@ -186,7 +192,9 @@ def handle_tls(packet):
         "Version": protocol_contexts.tls_name_versions.get(packet.get("tls.record.version")),
         "Record_Length": packet.get("tls.record.length"),
         "Encrypted_Protocol": packet.get("tls.app_data_proto"),
-        "Encrypted_Content": packet.get("tls.app_data")
+        "Encrypted_Content": packet.get("tls.app_data"),
+        "Content_Type": packet.get("tls.record.content_type"),
+        "Handshake_Type": packet.get("tls.handshake.type")
     }
 
 def handle_ssh(packet):
@@ -263,6 +271,7 @@ def create_tshark(file_path):
             "-e", "frame.number",   # Return specified fields only
             *analysis_fields,  
             "-E", f"separator={field_separator}",   # Separate fields with a specified separator
+            "-E", "quote=d",
             "-E", "header=y"    # Return headers
             # Use the same pipe for stoud and stderr, avoids blocking read in a simplified manner
         ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -280,12 +289,9 @@ def create_tshark_stream(tshark_process):
     else:
         header = header.replace("\n", "").split(field_separator)
 
-    # Parse other packets, one by one
-    for packet in tshark_process.stdout:
-        # Join columns with header values into a dict
-        packet = packet.replace("\n", "").split(field_separator)
-        packet = dict(zip(header, packet))
-
+    # Parse other packets, one by one as CSV
+    csv_reader = csv.DictReader(tshark_process.stdout, fieldnames=header)
+    for packet in csv_reader:
         yield analyze_tshark(packet)
 
 # Hex dump fallback for unknown protocols
