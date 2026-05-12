@@ -30,7 +30,7 @@ tshark_protocols = {
 }
 
 # Tshark stream is formatted and read as CSV
-field_separator = ","
+field_separator = "\u001f"   # Special ascii character Unit Separator
 
 # Flow cache dict, stores (src_ip, dst_ip, src_port, dst_port) tuple as a key
 # Stores id, initiator_key, receiver_key, initiator_fin, receiver_fin as value
@@ -129,7 +129,6 @@ def handle_http1(packet):
 
     if packet.get("http.file_data") is not None:
         data = packet.get("http.file_data")
-        data.replace(":", "")
         data = bytes.fromhex(data).decode("utf-8")
         http_header["Payload"] = data
     
@@ -290,7 +289,7 @@ def create_tshark_stream(tshark_process):
         header = header.replace("\n", "").split(field_separator)
 
     # Parse other packets, one by one as CSV
-    csv_reader = csv.DictReader(tshark_process.stdout, fieldnames=header)
+    csv_reader = csv.DictReader(tshark_process.stdout, fieldnames=header, delimiter=field_separator)
     for packet in csv_reader:
         yield analyze_tshark(packet)
 
