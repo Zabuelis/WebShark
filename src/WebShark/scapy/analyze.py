@@ -128,9 +128,7 @@ def handle_http1(packet):
     }
 
     if packet.get("http.file_data") is not None:
-        data = packet.get("http.file_data")
-        data = bytes.fromhex(data).decode("utf-8")
-        http_header["Payload"] = data
+        http_header["Payload"] = bytes.fromhex(packet.get("http.file_data")).decode("utf-8")
     
     if packet.get("http.request.version"):
         http_header.update({"Version": packet.get("http.request.version")})
