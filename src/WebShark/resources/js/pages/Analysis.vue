@@ -15,6 +15,7 @@ const props = defineProps({
     status: String,
     l7_status: String,
     message: String,
+    queue_position: Number,
     id: String,
     progress: Number,
     total_bytes: Number,
@@ -119,7 +120,8 @@ function startPolling() {
                 [
                     'status', 'l7_status', 'message', 'total_bytes', 'id', 'first_packet_time',
                     'last_packet_time', 'progress', 'expires_at', 'total_packets', 'total_flows',
-                    'l7_distribution', 'l3_distribution', 'l4_distribution', 'top_talkers', 'size_distribution'
+                    'l7_distribution', 'l3_distribution', 'l4_distribution', 'top_talkers', 'size_distribution',
+                    'queue_position'
                 ],
         })
     }, 500)
@@ -168,8 +170,14 @@ watch(
             <div class="w-16 h-16 border-4 border-blue-400/20 border-t-blue-400 rounded-full animate-spin mb-8"></div>
             
             <!-- Status Message -->
-            <p class="text-slate-800 font-mono text-sm max-w-md leading-relaxed">
-                Status: <span class="animate-pulse">{{ props.message }}</span>
+            <p class="text-slate-800 font-mono text-sm max-w-md leading-relaxed flex flex-col">
+                <div v-if="props.queue_position !== 0">
+                    Status: <span class="animate-pulse">Waiting in queue...</span><br>
+                    Queue Position: <span class="animate-pulse">{{ props.queue_position }}</span>
+                </div>
+                <div v-else>
+                    Status: <span class="animate-pulse">{{ props.message }}</span>
+                </div>
             </p>
 
             <!-- Progress Bar -->

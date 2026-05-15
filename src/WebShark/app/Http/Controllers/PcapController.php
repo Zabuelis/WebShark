@@ -84,9 +84,10 @@ class PcapController extends Controller
             'l7_status' => $l7_status,
             'progress' => $job->progress_percentage,
             'expires_at' => $job->expires_at
-                ? \Carbon\Carbon::parse($job->expires_at)->diffForHumans(['parts' => 2, 'join' => true])
+                ? Carbon::parse($job->expires_at)->diffForHumans(['parts' => 2, 'join' => true])
                 : null,
             'message'  => '',
+            'queue_position' => 0,
 
             // Metadata used by the Overview tab and time formatting
             'total_bytes' => 0,
@@ -104,6 +105,10 @@ class PcapController extends Controller
         // Check the status of the job
         if ($status === 'dispatching') {
             $props['message'] = 'Analyzing PCAP... Please wait.';
+            $props['queue_position'] = AnalysisJob::where(function ($q){
+                $q->where('status', 'dispatching');
+                $q->orWhere('l7_status', 'dispatching');
+            })->where('timestamp', '<', $job->timestamp)->count();
             return Inertia::render('Analysis', $props);
         }
 
@@ -328,6 +333,7 @@ class PcapController extends Controller
             'file_path' => $rebuiltFileName,
             'status' => 'dispatching',
             'l7_status' => 'dispatching',
+            'timestamp' => Carbon::now(),
         ]);
 
         AnalyzePcap::dispatch($uuid, $rebuiltFileName);
