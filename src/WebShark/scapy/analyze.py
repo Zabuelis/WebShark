@@ -94,7 +94,7 @@ def handle_arp(pkt):
             "Mac_Src": arp.hwsrc,
             "Mac_Dst": arp.hwdst,
             "Proto_Type": arp.ptype,
-
+            "Opcode": arp.op
         }
     }
 

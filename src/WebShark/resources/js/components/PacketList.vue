@@ -77,7 +77,7 @@ const highestLevelProtocol = (packet) => {
 // Protocol specific for quick preview in the INFO column
 const protocolSpecificInformation = (packet) => {
     var data = []
-    switch (packet.l7_attributes?.Protocol || packet.l4_protocol) {
+    switch (packet.l7_attributes?.Protocol || packet.l4_protocol || packet.l3_protocol) {
         case "TLS":
             data = [packet.l7_attributes.Version, packet.l7_attributes.Encrypted_Protocol]
             break
@@ -103,6 +103,12 @@ const protocolSpecificInformation = (packet) => {
             break
         case "UDP":
             data = [packet.l4_attributes.Source_Port, "-> ", packet.l4_attributes.Destination_Port]
+            break
+        case "ICMP":
+            data = [`Code: ${packet.l4_attributes.Code}`, " ", `Type: ${packet.l4_attributes.Type}`]
+            break
+        case "ARP":
+            data = [`Opcode: ${packet.l3_attributes.Opcode}`]
             break
     }
     data = data.filter(Boolean)
