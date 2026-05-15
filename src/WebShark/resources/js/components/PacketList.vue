@@ -105,10 +105,10 @@ const protocolSpecificInformation = (packet) => {
             data = [packet.l4_attributes.Source_Port, "-> ", packet.l4_attributes.Destination_Port]
             break
         case "ICMP":
-            data = [`Code: ${packet.l4_attributes.Code}`, " ", `Type: ${packet.l4_attributes.Type}`]
+            data = [`Type:${packet.l4_attributes.Type}`, " ", `Code:${packet.l4_attributes.Code}`,]
             break
         case "ARP":
-            data = [`Opcode: ${packet.l3_attributes.Opcode}`]
+            data = [`Opcode:${packet.l3_attributes.Opcode}`]
             break
     }
     data = data.filter(Boolean)
