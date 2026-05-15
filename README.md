@@ -136,14 +136,14 @@ For quicker packet search this tool supports filtering. Filters are finite, howe
    - > ip.src == 192.168.1.1 && proto == TLS && ip.dst == 18.97.36.54
 2. Available filters
    - Filters must follow the presented pattern or else will return incorrect or no result.
-   - | Filter | Action |
-     |--------|--------|
-     | ip.src == | Filters results based on specified source IP address. | 
-     | ip.dst == | Filters results based on specifies destination IP address. |
-     | port.src == | Filters results based on specified source PORT. |
-     | port.dst == | Filters results based on specified destination PORT. |
-     | proto == | Filters results based on specified protocol. This filter is not case sensitive so it will accept both lowercase and uppercase values. |
-     | tcp.flow == | Filters results based on specified TCP flow. TCP flows are reassembled during analysis process start from 0. |
+      | Filter | Action |
+      |--------|--------|
+      | ip.src == | Filters results based on specified source IP address. | 
+      | ip.dst == | Filters results based on specifies destination IP address. |
+      | port.src == | Filters results based on specified source PORT. |
+      | port.dst == | Filters results based on specified destination PORT. |
+      | proto == | Filters results based on specified protocol. This filter is not case sensitive so it will accept both lowercase and uppercase values. |
+      | tcp.flow == | Filters results based on specified TCP flow. TCP flows are reassembled during analysis process start from 0. |
 
 ---
 

@@ -102,13 +102,15 @@ class PcapController extends Controller
             'total_flows' => 0,
         ];
 
-        // Check the status of the job
+        // Check the status and queue position of the job
         if ($status === 'dispatching') {
             $props['message'] = 'Analyzing PCAP... Please wait.';
             $props['queue_position'] = AnalysisJob::where(function ($q){
                 $q->where('status', 'dispatching');
                 $q->orWhere('l7_status', 'dispatching');
-            })->where('timestamp', '<', $job->timestamp)->count();
+            })->where('timestamp', '<=', $job->timestamp)
+            ->where('analysis_id', '!=', $id)
+            ->count();
             return Inertia::render('Analysis', $props);
         }
 
