@@ -108,7 +108,8 @@ class PcapController extends Controller
             $props['queue_position'] = AnalysisJob::where(function ($q){
                 $q->where('status', 'dispatching');
                 $q->orWhere('l7_status', 'dispatching');
-            })->where('timestamp', '<=', $job->timestamp)
+            })
+            ->where('timestamp', '<=', $job->timestamp)
             ->where('analysis_id', '!=', $id)
             ->count();
             return Inertia::render('Analysis', $props);
