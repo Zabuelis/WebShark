@@ -146,10 +146,10 @@ class PcapController extends Controller
             ->get();
 
         // 15 IP addresses with highest amount of packets sent
-        $props['top_talkers'] = Packet::select('src_ip as IP', DB::raw('count (*) as records'))
+        $props['top_talkers'] = Packet::select(DB::raw("l3_attributes->>'Source_IP' as ip"), DB::raw('count (*) as records'))
             ->where('analysis_id', $id)
-            ->whereNotNull('src_ip')
-            ->groupBy('IP')
+            ->whereNotNull(DB::raw("l3_attributes->>'Source_IP'"))
+            ->groupBy(DB::raw("l3_attributes->>'Source_IP'"))
             ->orderBy('records', 'desc')
             ->limit(15)
             ->get();
@@ -212,17 +212,11 @@ class PcapController extends Controller
                 'packet_number',
                 'timestamp',
                 'l3_protocol',
+                'l3_attributes',
                 'l4_protocol',
+                'l4_attributes',
                 'l7_attributes',
-                'src_ip',
-                'dst_ip',
-                'src_port',
-                'dst_port',
-                'tcp_flag',
                 'flow',
-                'tcp_window',
-                'tcp_seq_number',
-                'tcp_ack_number',
                 'captured_packet_length',
                 'raw_hex',
             ]);
@@ -266,17 +260,11 @@ class PcapController extends Controller
                 'packet_number',
                 'timestamp',
                 'l3_protocol',
+                'l3_attributes',
                 'l4_protocol',
+                'l4_attributes',
                 'l7_attributes',
-                'src_ip',
-                'dst_ip',
-                'src_port',
-                'dst_port',
                 'flow',
-                'tcp_flag',
-                'tcp_window',
-                'tcp_seq_number',
-                'tcp_ack_number',
                 'captured_packet_length',
                 'raw_hex',
             ]);
@@ -294,10 +282,10 @@ class PcapController extends Controller
     private function buildFilterQuery($queryBuilder, $query){
         // Key needs to match the actual column in the DB
         $filters = [
-            'src_ip' => 'ip.src == ',
-            'dst_ip' => 'ip.dst == ',
-            'dst_port' => 'port.dst == ',
-            'src_port' => 'port.src == ',
+            "l3_attributes->>'Source_IP'" => 'ip.src == ',
+            "l3_attributes->>'Destination_IP'" => 'ip.dst == ',
+            "l4_attributes->>'Destination_Port'" => 'port.dst == ',
+            "l4_attributes->>'Source_Port'" => 'port.src == ',
             'proto' => 'proto == ',
             'flow' => 'tcp.flow == ',
         ];
@@ -309,14 +297,14 @@ class PcapController extends Controller
                     $value = "%{$value}%";
                     // There are special cases where filtering takes up more than 1 column and needs to be aggregated.
                     if($filter == 'proto == '){
-                        $value = strtoupper($value);
                         $queryBuilder->where(function ($q) use ($value) {
                             $q->orWhere('l3_protocol', 'like', $value);
                             $q->orWhere('l4_protocol', 'like', $value);
-                            $q->orWhere('l7_attributes->Protocol', 'like', $value);
+                            $q->orWhereRaw("l7_attributes->>'Protocol' like ?", [$value]);
                         });
                     } else {
-                        $queryBuilder->where($column, 'like', $value);
+                        $value = strtoupper($value);
+                        $queryBuilder->whereRaw("{$column} like ?", [$value]);
                     }
                 }
             }
