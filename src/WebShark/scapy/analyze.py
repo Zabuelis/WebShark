@@ -427,7 +427,7 @@ def reassemble_flows(pkt):
         flow_num += 1
     elif flow_cache.get(key) is not None:
         flow = flow_cache[key]
-        # F (FIN) flag indicates that one side want to close the connection
+        # F (FIN) flag indicates that one side wants to close the connection
         if "F" in flags:
             if sender == flow["receiver"] and flow["initiator_fin"] is True:
                 pkt["flow"] = flow["id"]
