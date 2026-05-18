@@ -439,9 +439,8 @@ def reassemble_flows(pkt):
             elif sender == flow["initiator"]:
                 flow_cache[key]["initiator_fin"] = True
         # If both sides sent FIN wait for last ACK and then remove flow from cache
-        elif flow["initiator_fin"] is True and flow["receiver_fin"] is True:
-            if "A" in flags:
-                flow_cache.pop(key)
+        elif flow["initiator_fin"] is True and flow["receiver_fin"] is True and "A" in flags:
+            flow_cache.pop(key)
             
     # Packets that are not SYN and have no record in the flow cache
     # are interpreted as having no beginning recorded. In this case they also get a unique flow.
