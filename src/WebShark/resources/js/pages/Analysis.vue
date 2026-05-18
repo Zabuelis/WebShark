@@ -161,7 +161,7 @@ watch(
 <template>
     <Head title="Analyzing Packets..." />
 
-    <!-- Show this only if the status is 'dispatching' -->
+    <!-- Show this only if the status is one of the initial states -->
     <div v-if="initialStates.includes(props.status)" 
          class="fixed inset-0 z-50 flex flex-col items-center justify-center text-center px-6">
         
@@ -173,7 +173,7 @@ watch(
             
             <!-- Status Message -->
             <p class="text-slate-800 font-mono text-sm max-w-md leading-relaxed flex flex-col">
-                <div v-if="props.queue_position !== 0">
+                <div v-if="props.queue_position !== 0 && props.status === 'dispatching'">
                     Status: <span class="animate-pulse">Waiting in queue...</span><br>
                     Queue Position: <span class="animate-pulse">{{ props.queue_position }}</span>
                 </div>

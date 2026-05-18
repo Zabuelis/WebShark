@@ -111,7 +111,7 @@ class PcapController extends Controller
             })
             ->where('timestamp', '<=', $job->timestamp)
             ->where('analysis_id', '!=', $id)
-            ->count();
+            ->count() + 1;
             return Inertia::render('Analysis', $props);
         }
 
