@@ -483,8 +483,12 @@ except:
     print(json.dumps({"error": "Failed to establish DB connection"}))
     sys.exit(1)
 
+cursor.execute("UPDATE analysis_job SET status = %s WHERE analysis_id = %s", ("analyzing", analysis_id))
+cursor.execute("UPDATE analysis_job SET l7_status = %s WHERE analysis_id = %s", ("analyzing", analysis_id))
+conn.commit()
 total_size = os.path.getsize(file_path)
 rows = []
+sleep(5)
 
 # Critical operation (if this fails, analysis can't be displayed)
 try:

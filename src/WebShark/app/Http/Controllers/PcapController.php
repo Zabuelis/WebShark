@@ -103,7 +103,7 @@ class PcapController extends Controller
         ];
 
         // Check the status and queue position of the job
-        if ($status === 'dispatching') {
+        if ($status === 'dispatching' || $status === 'analyzing') {
             $props['message'] = 'Analyzing PCAP... Please wait.';
             $props['queue_position'] = AnalysisJob::where(function ($q){
                 $q->where('status', 'dispatching');

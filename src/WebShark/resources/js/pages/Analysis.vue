@@ -137,11 +137,11 @@ function stopPolling() {
 watch(
     () => [props.status, props.l7_status],
     async ([newStatus, newL7Status]) => {
-        if (newStatus === 'dispatching' || newL7Status === 'dispatching') {
+        if (newStatus === 'dispatching' || newStatus === 'analyzing' || newL7Status === 'dispatching' || newL7Status === 'analyzing') {
             startPolling()
         }
         if (newStatus === 'finished') {
-            if (newL7Status !== 'dispatching') {
+            if (newL7Status !== 'analyzing') {
                 stopPolling()
                 totalItems.value = props.total_packets
                 startExpiryPolling()
@@ -160,7 +160,7 @@ watch(
     <Head title="Analyzing Packets..." />
 
     <!-- Show this only if the status is 'dispatching' -->
-    <div v-if="props.status === 'dispatching'" 
+    <div v-if="props.status === 'dispatching' || props.status === 'analyzing'" 
          class="fixed inset-0 z-50 flex flex-col items-center justify-center text-center px-6">
         
         <!-- The Content -->
@@ -206,7 +206,7 @@ watch(
         <NavBar/>
 
         <!-- Spinner to indicate L7 parsing -->
-        <div v-if="props.l7_status === 'dispatching'" class="bg-sky-100 flex gap-4 border border-sky-400 text-start text-sky-700 pl-6 py-2 justify-center items-center" role="status">
+        <div v-if="props.l7_status === 'analyzing'" class="bg-sky-100 flex gap-4 border border-sky-400 text-start text-sky-700 pl-6 py-2 justify-center items-center" role="status">
             <span class="font-bold text-sm">Analyzing Application Layer Data</span>
                 <div class="w-6 h-6 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
         </div>
