@@ -134,10 +134,12 @@ function stopPolling() {
     }
 }
 
+// States used to begin polling and indicate unfinished processing
+const initialStates = ['dispatching', 'analyzing']
 watch(
     () => [props.status, props.l7_status],
     async ([newStatus, newL7Status]) => {
-        if (newStatus === 'dispatching' || newStatus === 'analyzing' || newL7Status === 'dispatching' || newL7Status === 'analyzing') {
+        if (initialStates.includes(newStatus) || initialStates.includes(newL7Status)) {
             startPolling()
         }
         if (newStatus === 'finished') {
@@ -160,7 +162,7 @@ watch(
     <Head title="Analyzing Packets..." />
 
     <!-- Show this only if the status is 'dispatching' -->
-    <div v-if="props.status === 'dispatching' || props.status === 'analyzing'" 
+    <div v-if="initialStates.includes(props.status)" 
          class="fixed inset-0 z-50 flex flex-col items-center justify-center text-center px-6">
         
         <!-- The Content -->

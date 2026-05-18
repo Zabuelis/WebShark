@@ -488,7 +488,6 @@ cursor.execute("UPDATE analysis_job SET l7_status = %s WHERE analysis_id = %s", 
 conn.commit()
 total_size = os.path.getsize(file_path)
 rows = []
-sleep(5)
 
 # Critical operation (if this fails, analysis can't be displayed)
 try:
