@@ -429,23 +429,16 @@ def reassemble_flows(pkt):
     elif flow_cache.get(key) is not None:
         flow = flow_cache[key]
         pkt["flow"] = flow["id"]
-        # F (FIN) flag indicates that one side wants to close the connection
-        if "F" in flags:
-            if sender == flow["receiver"]:
-                # if flow["initiator_fin"] is True:
-                #     flow_cache.pop(key)
-                # else:
-                    flow_cache[key]["receiver_fin"] = True
-            elif sender == flow["initiator"]:
-                # if flow["receiver_fin"] is True:
-                #     flow_cache.pop(key)
-                # else:
-                    flow_cache[key]["initiator_fin"] = True
         # R (RST) flag indicates to break the connection right at this moment
-        elif "R" in flags:
-            flow_cache[key]["receiver_fin"] = True
-            flow_cache[key]["initiator_fin"] = True
-            # flow_cache.pop(key)
+        if "R" in flags:
+            flow_cache.pop(key)
+        # F (FIN) flag indicates that one side wants to close the connection
+        elif "F" in flags:
+            if sender == flow["receiver"]:
+                flow_cache[key]["receiver_fin"] = True
+            elif sender == flow["initiator"]:
+                flow_cache[key]["initiator_fin"] = True
+        # If both sides sent FIN wait for last ACK and then remove flow from cache
         elif flow["initiator_fin"] is True and flow["receiver_fin"] is True:
             if "A" in flags:
                 flow_cache.pop(key)
