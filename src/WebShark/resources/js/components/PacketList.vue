@@ -36,11 +36,17 @@ const detailSections = computed(() => {
         },
         {
             title: "Network Layer",
-            fields: rebuildPacketFields(p.l3_attributes)
+            fields: [
+                { label: "Protocol", value: p.l3_protocol },
+                ...rebuildPacketFields(p.l3_attributes)
+            ]
         },
         {
             title: "Transport Layer",
-            fields: rebuildPacketFields(p.l4_attributes)
+            fields: [
+                { label: "Protocol", value: p.l4_protocol }, 
+                ...rebuildPacketFields(p.l4_attributes)
+            ]
         },
         {
             title: "Application Layer",

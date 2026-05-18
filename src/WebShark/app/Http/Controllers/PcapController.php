@@ -102,22 +102,26 @@ class PcapController extends Controller
             'total_flows' => 0,
         ];
 
-        // Check the status and queue position of the job
-        if ($status === 'dispatching' || $status === 'analyzing') {
-            $props['message'] = 'Analyzing PCAP... Please wait.';
-            $props['queue_position'] = AnalysisJob::where(function ($q){
-                $q->where('status', 'dispatching');
-                $q->orWhere('l7_status', 'dispatching');
-            })
-            ->where('timestamp', '<=', $job->timestamp)
-            ->where('analysis_id', '!=', $id)
-            ->count() + 1;
-            return Inertia::render('Analysis', $props);
-        }
-
-        if ($status === 'failed') {
-            $props['message'] = $job->error_message ?? 'Analysis failed due to a system error. Error code: 3';
-            return Inertia::render('Analysis', $props);
+        switch ($status) {
+            // Check the status and queue position of the job
+            case 'dispatching':
+                $props['queue_position'] = AnalysisJob::where(function ($q){
+                    $q->where('status', 'dispatching');
+                    $q->orWhere('l7_status', 'dispatching');
+                })
+                ->where('timestamp', '<=', $job->timestamp)
+                ->where('analysis_id', '!=', $id)
+                ->count() + 1;
+                return Inertia::render('Analysis', $props);
+            // If the status == analyzing, queue position is no longer required
+            case 'analyzing':
+                $props['message'] = 'Analyzing PCAP... Please wait.';
+                return Inertia::render('Analysis', $props);
+            case 'failed':
+                $props['message'] = $job->error_message ?? 'Analysis failed due to a system error. Error code: 3';
+                return Inertia::render('Analysis', $props);
+            default:
+                break;
         }
 
         if ($l7_status === 'failed') {
