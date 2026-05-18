@@ -11,6 +11,17 @@ const props = defineProps({
 
 const selectedPacket = ref(null)
 
+// Takes JSON object and rebuilds it into an array of [attribute_name, attribute_value] pairs.
+// Filters boolean values to avoid empty fields.
+const rebuildPacketFields = (attributes) => {
+    return [ 
+        ...(attributes ? Object.entries(attributes).map(([attribute_name, attribute_value]) =>
+            attribute_value !== "" ? { label: attribute_name, value: attribute_value } : null
+        ).filter(Boolean)
+        : []
+    )]
+}
+
 const detailSections = computed(() => {
     if (!selectedPacket.value) return []
     const p = selectedPacket.value
@@ -26,39 +37,20 @@ const detailSections = computed(() => {
         {
             title: "Network Layer",
             fields: [
-                { label: "L3 Protocol", value: p.l3_protocol },
-                { label: "Source IP", value: p.src_ip },
-                { label: "Destination IP", value: p.dst_ip },
+                { label: "Protocol", value: p.l3_protocol },
+                ...rebuildPacketFields(p.l3_attributes)
             ]
         },
         {
             title: "Transport Layer",
             fields: [
-                { label: "L4 Protocol", value: p.l4_protocol },
-                { label: "Source Port", value: p.src_port },
-                { label: "Dest Port", value: p.dst_port },
-
-                // TCP specific fields
-                ...(p.l4_protocol === "TCP" ? [
-                    { label: "TCP Flags", value: p.tcp_flag },
-                    { label: "TCP Window", value: p.tcp_window },
-                    { label: "TCP SEQ Number", value: p.tcp_seq_number },
-                    { label: "TCP ACK Number", value: p.tcp_ack_number },
-                ] : [])
+                { label: "Protocol", value: p.l4_protocol }, 
+                ...rebuildPacketFields(p.l4_attributes)
             ]
         },
         {
             title: "Application Layer",
-            fields: [
-                // Dynamic L7 attributes when present
-                ...(p.l7_attributes
-                    ? Object.entries(p.l7_attributes)
-                        .map(([attribute_name, attribute_value]) =>
-                            attribute_value !== "" ? { label: attribute_name, value: attribute_value } : null
-                        )
-                        .filter(Boolean)
-                    : [])
-            ]
+            fields: rebuildPacketFields(p.l7_attributes)
         }
     ]
 })
@@ -91,7 +83,7 @@ const highestLevelProtocol = (packet) => {
 // Protocol specific for quick preview in the INFO column
 const protocolSpecificInformation = (packet) => {
     var data = []
-    switch (packet.l7_attributes?.Protocol || packet.l4_protocol) {
+    switch (packet.l7_attributes?.Protocol || packet.l4_protocol || packet.l3_protocol) {
         case "TLS":
             data = [packet.l7_attributes.Version, packet.l7_attributes.Encrypted_Protocol]
             break
@@ -113,10 +105,16 @@ const protocolSpecificInformation = (packet) => {
             data = [packet.l7_attributes.SSH_Direction]
             break
         case "TCP":
-            data = [packet.src_port, "-> ", packet.dst_port, `Flags=${packet.tcp_flag}`, `Win=${packet.tcp_window}`]
+            data = [packet.l4_attributes.Source_Port, "-> ", packet.l4_attributes.Destination_Port, `Flags=${packet.l4_attributes.Flags}`, `Win=${packet.l4_attributes.Window}`]
             break
         case "UDP":
-            data = [packet.src_port, "-> ", packet.dst_port]
+            data = [packet.l4_attributes.Source_Port, "-> ", packet.l4_attributes.Destination_Port]
+            break
+        case "ICMP":
+            data = [`Type:${packet.l4_attributes.Type}`, " ", `Code:${packet.l4_attributes.Code}`,]
+            break
+        case "ARP":
+            data = [`Opcode:${packet.l3_attributes.Opcode}`]
             break
     }
     data = data.filter(Boolean)
@@ -447,8 +445,8 @@ const isFlowHighlightActive = computed(() =>
                             <div class="text-slate-500 text-xs">
                                 {{ packet._placeholder ? 'Loading...' : formatTime(packet.timestamp) + 's' }}
                             </div>
-                            <div class="text-slate-800 font-medium">{{ formatIP(packet.src_ip) }}</div>
-                            <div class="text-slate-800">{{ formatIP(packet.dst_ip) }}</div>
+                            <div class="text-slate-800 font-medium">{{ formatIP(packet.l3_attributes?.Source_IP) }}</div>
+                            <div class="text-slate-800">{{ formatIP(packet.l3_attributes?.Destination_IP) }}</div>
                             <div>
                                 <span v-if="!packet._placeholder"
                                     :class="getProtoColor(packet)"

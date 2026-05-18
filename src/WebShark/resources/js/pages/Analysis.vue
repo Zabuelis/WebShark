@@ -15,6 +15,7 @@ const props = defineProps({
     status: String,
     l7_status: String,
     message: String,
+    queue_position: Number,
     id: String,
     progress: Number,
     total_bytes: Number,
@@ -119,7 +120,8 @@ function startPolling() {
                 [
                     'status', 'l7_status', 'message', 'total_bytes', 'id', 'first_packet_time',
                     'last_packet_time', 'progress', 'expires_at', 'total_packets', 'total_flows',
-                    'l7_distribution', 'l3_distribution', 'l4_distribution', 'top_talkers', 'size_distribution'
+                    'l7_distribution', 'l3_distribution', 'l4_distribution', 'top_talkers', 'size_distribution',
+                    'queue_position'
                 ],
         })
     }, 500)
@@ -132,14 +134,16 @@ function stopPolling() {
     }
 }
 
+// States used to begin polling and indicate unfinished processing
+const initialStates = ['dispatching', 'analyzing']
 watch(
     () => [props.status, props.l7_status],
     async ([newStatus, newL7Status]) => {
-        if (newStatus === 'dispatching' || newL7Status === 'dispatching') {
+        if (initialStates.includes(newStatus) || initialStates.includes(newL7Status)) {
             startPolling()
         }
         if (newStatus === 'finished') {
-            if (newL7Status !== 'dispatching') {
+            if (newL7Status !== 'analyzing') {
                 stopPolling()
                 totalItems.value = props.total_packets
                 startExpiryPolling()
@@ -157,8 +161,8 @@ watch(
 <template>
     <Head title="Analyzing Packets..." />
 
-    <!-- Show this only if the status is 'dispatching' -->
-    <div v-if="props.status === 'dispatching'" 
+    <!-- Show this only if the status is one of the initial states -->
+    <div v-if="initialStates.includes(props.status)" 
          class="fixed inset-0 z-50 flex flex-col items-center justify-center text-center px-6">
         
         <!-- The Content -->
@@ -168,8 +172,14 @@ watch(
             <div class="w-16 h-16 border-4 border-blue-400/20 border-t-blue-400 rounded-full animate-spin mb-8"></div>
             
             <!-- Status Message -->
-            <p class="text-slate-800 font-mono text-sm max-w-md leading-relaxed">
-                Status: <span class="animate-pulse">{{ props.message }}</span>
+            <p class="text-slate-800 font-mono text-sm max-w-md leading-relaxed flex flex-col">
+                <div v-if="props.status === 'dispatching'">
+                    Status: <span class="animate-pulse">Waiting in queue...</span><br>
+                    Queue Position: <span class="animate-pulse">{{ props.queue_position }}</span>
+                </div>
+                <div v-else>
+                    Status: <span class="animate-pulse">{{ props.message }}</span>
+                </div>
             </p>
 
             <!-- Progress Bar -->
@@ -198,7 +208,7 @@ watch(
         <NavBar/>
 
         <!-- Spinner to indicate L7 parsing -->
-        <div v-if="props.l7_status === 'dispatching'" class="bg-sky-100 flex gap-4 border border-sky-400 text-start text-sky-700 pl-6 py-2 justify-center items-center" role="status">
+        <div v-if="props.l7_status === 'analyzing'" class="bg-sky-100 flex gap-4 border border-sky-400 text-start text-sky-700 pl-6 py-2 justify-center items-center" role="status">
             <span class="font-bold text-sm">Analyzing Application Layer Data</span>
                 <div class="w-6 h-6 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
         </div>
