@@ -173,7 +173,7 @@ watch(
             
             <!-- Status Message -->
             <p class="text-slate-800 font-mono text-sm max-w-md leading-relaxed flex flex-col">
-                <div v-if="props.queue_position !== 0 && props.status === 'dispatching'">
+                <div v-if="props.status === 'dispatching'">
                     Status: <span class="animate-pulse">Waiting in queue...</span><br>
                     Queue Position: <span class="animate-pulse">{{ props.queue_position }}</span>
                 </div>
