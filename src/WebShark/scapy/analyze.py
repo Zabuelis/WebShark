@@ -8,6 +8,7 @@ from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP, ARP
 import subprocess
 import csv
 from analyzer_modules import *
+csv.field_size_limit(sys.maxsize)
 
 # So, in our case we have layers: L3, L4 and L7. Each layer has its own registry.
 # The registry is a dict that maps the protocol name to the function that can handle it.
@@ -414,7 +415,7 @@ def reassemble_flows(pkt):
     key = (src_ip, dst_ip, src_port, dst_port)
     sender = (pkt["layers"]["L3"]["l3_attributes"].get("Source_IP"), pkt["layers"]["L4"]["l4_attributes"].get("Source_Port"))
 
-    # S (SYN) flag indicates the beggining of a TCP session
+    # S (SYN) flag indicates the beginning of a TCP session
     if "S" in flags and "A" not in flags:
         flow_cache[key] = {
             "id": flow_num,
@@ -427,26 +428,20 @@ def reassemble_flows(pkt):
         flow_num += 1
     elif flow_cache.get(key) is not None:
         flow = flow_cache[key]
-        # F (FIN) flag indicates that one side wants to close the connection
-        if "F" in flags:
-            if sender == flow["receiver"] and flow["initiator_fin"] is True:
-                pkt["flow"] = flow["id"]
-                flow_cache.pop(key)
-            elif sender == flow["initiator"] and flow["receiver_fin"] is True:
-                pkt["flow"] = flow["id"]
-                flow_cache.pop(key)
-            else:
-                if sender == flow["initiator"]:
-                    flow_cache[key]["initiator"] = True
-                elif sender == flow["receiver"]:
-                    flow_cache[key]["receiver"] = True
+        pkt["flow"] = flow["id"]
         # R (RST) flag indicates to break the connection right at this moment
         if "R" in flags:
-            pkt["flow"] = flow["id"]
             flow_cache.pop(key)
-        # Everything else is flow traffic
-        else:
-            pkt["flow"] = flow["id"]
+        # F (FIN) flag indicates that one side wants to close the connection
+        elif "F" in flags:
+            if sender == flow["receiver"]:
+                flow_cache[key]["receiver_fin"] = True
+            elif sender == flow["initiator"]:
+                flow_cache[key]["initiator_fin"] = True
+        # If both sides sent FIN wait for last ACK and then remove flow from cache
+        elif flow["initiator_fin"] is True and flow["receiver_fin"] is True and "A" in flags:
+            flow_cache.pop(key)
+            
     # Packets that are not SYN and have no record in the flow cache
     # are interpreted as having no beginning recorded. In this case they also get a unique flow.
     else:
