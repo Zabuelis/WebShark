@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36">
   <diagram name="Page-1" id="58cdce13-f638-feb5-8d6f-7d28b1aa9fa0">
-    <mxGraphModel dx="1413" dy="733" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" background="none" math="0" shadow="0">
+    <mxGraphModel dx="1501" dy="779" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" background="none" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -202,7 +202,7 @@
             <mxPoint x="360" y="670" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="7PtdA0ksACC-LeMy6f2T-10" parent="1" style="rhombus;whiteSpace=wrap;html=1;fontColor=#000000;fillColor=#ffffc0;strokeColor=#ff0000;" value="Have both hosts sent FIN and this is the last ACK" vertex="1">
+        <mxCell id="7PtdA0ksACC-LeMy6f2T-10" parent="1" style="rhombus;whiteSpace=wrap;html=1;fontColor=#000000;fillColor=#ffffc0;strokeColor=#ff0000;" value="Have both hosts sent FIN and this is the last ACK?" vertex="1">
           <mxGeometry height="100" width="110" x="440" y="600" as="geometry" />
         </mxCell>
         <mxCell id="7PtdA0ksACC-LeMy6f2T-11" edge="1" parent="1" source="7PtdA0ksACC-LeMy6f2T-10" style="edgeStyle=orthogonalEdgeStyle;html=1;align=left;verticalAlign=bottom;endArrow=open;endSize=8;strokeColor=#ff0000;rounded=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;exitX=1;exitY=1;exitDx=0;exitDy=0;" target="eLgGmlr6tIOh9t_z2pkM-41" value="no">
