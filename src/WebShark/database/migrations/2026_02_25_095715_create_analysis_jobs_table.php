@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('analysis_job', function (Blueprint $table) {
             $table->uuid('analysis_id')->unique();
             $table->string('file_path');
+            $table->dateTime('timestamp');
             $table->dateTime('expires_at', precision: 0)->nullable(true);
             $table->string('status');
             $table->string('l7_status');

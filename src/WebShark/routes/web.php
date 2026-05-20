@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\FileController;
 use App\Http\Controllers\PcapController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -13,11 +12,11 @@ Route::get('/', function () {
 })->name('home');
 
 // Use the native 'throttle' middleware
-Route::middleware('throttle:pcap-uploads')->group(function () {
-    Route::post('/file/uploadPcap', [PcapController::class, 'create'])->name('upload.pcap');
-});
-
 // Route to display packet data
+Route::post('/file/uploadPcap', [PcapController::class, 'create'])
+    ->middleware(['pcap.block.check', 'throttle:pcap-uploads'])
+    ->name('upload.pcap');
+
 Route::middleware('analysis.exists')->group(function () {
 
     Route::controller(PcapController::class)->group(function () {

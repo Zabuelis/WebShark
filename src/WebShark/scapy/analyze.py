@@ -4,9 +4,11 @@ import psycopg2
 import psycopg2.extras
 import json
 from time import sleep
-from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP
+from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP, ARP
 import subprocess
+import csv
 from analyzer_modules import *
+csv.field_size_limit(sys.maxsize)
 
 # So, in our case we have layers: L3, L4 and L7. Each layer has its own registry.
 # The registry is a dict that maps the protocol name to the function that can handle it.
@@ -23,16 +25,15 @@ tshark_protocols = {
     # DHCPv4 fields
     "dhcp": [ "dhcp.id", "dhcp.ip.client", "dhcp.ip.relay", "dhcp.ip.server", "dhcp.ip.your",  "dhcp.option.dhcp", "dhcp.option.subnet_mask", "dhcp.option.request_list_item"],
     # TLS fields
-    "tls": [ "tls.app_data_proto", "tls.app_data", "tls.record.version", "tls.record.length" ],
+    "tls": [ "tls.app_data_proto", "tls.handshake.type", "tls.record.content_type", "tls.app_data", "tls.record.version", "tls.record.length" ],
     # SSH fields
     "ssh" : [ "ssh.protocol", "ssh.direction", "ssh.encrypted_packet", "ssh.packet_length", "ssh.packet_length_encrypted", "ssh.message_code" ]
 }
 
-# Used to separate fields inside the return of tshark command
-# Unique symbol which will never be encountered in real traffic data.
+# Tshark stream is formatted and read as CSV
 field_separator = "\u001f"   # Special ascii character Unit Separator
 
-# Flow cache dict, stores (src_ip, dst_ip, src_port, dst_port) as a key
+# Flow cache dict, stores (src_ip, dst_ip, src_port, dst_port) tuple as a key
 # Stores id, initiator_key, receiver_key, initiator_fin, receiver_fin as value
 flow_cache = {}
 
@@ -56,11 +57,13 @@ def handle_ipv4(pkt):
     ip = pkt[IP]
     return {
         "protocol": "IPv4",
-        "src": ip.src,
-        "dst": ip.dst,
-        "ttl": ip.ttl,
         "length": ip.len,
-        "protocol_num": ip.proto,
+        "l3_attributes": {
+            "Source_IP": ip.src,
+            "Destination_IP": ip.dst,
+            "TTL": ip.ttl,
+            "Protocol_Num": ip.proto,
+        }
     }
 
 def handle_ipv6(pkt):
@@ -69,15 +72,36 @@ def handle_ipv6(pkt):
     ip6 = pkt[IPv6]
     return {
         "protocol": "IPv6",
-        "src": ip6.src,
-        "dst": ip6.dst,
-        "hop_limit": ip6.hlim,
-        "payload_len": ip6.plen,
-        "next_header": ip6.nh,
+        "length": ip6.plen,
+        "l3_attributes": {
+            "Source_IP": ip6.src,
+            "Destination_IP": ip6.dst,
+            "Hop_Limit": ip6.hlim,
+            "Next_Header": ip6.nh,
+        }
+    }
+
+def handle_arp(pkt):
+    if ARP not in pkt:
+        return None
+    arp = pkt[ARP]
+    return {
+        "protocol": "ARP",
+        # Length is fixed 14 bytes Ethernet, 28 ARP
+        "length": 48,
+        "l3_attributes": {
+            "Source_IP": arp.psrc,
+            "Destination_IP": arp.pdst,
+            "Mac_Src": arp.hwsrc,
+            "Mac_Dst": arp.hwdst,
+            "Proto_Type": arp.ptype,
+            "Opcode": protocol_contexts.arp_opcode.get(arp.op)
+        }
     }
 
 register("L3", "IPv4", handle_ipv4)
 register("L3", "IPv6", handle_ipv6)
+register("L3", "ARP", handle_arp)
 
 # L4 handlers
 def handle_tcp(pkt):
@@ -86,12 +110,14 @@ def handle_tcp(pkt):
     tcp = pkt[TCP]
     return {
         "protocol": "TCP",
-        "src_port": tcp.sport,
-        "dst_port": tcp.dport,
-        "seq": tcp.seq,
-        "ack": tcp.ack,
-        "flags": str(tcp.flags),
-        "window": tcp.window,
+        "l4_attributes": {
+            "Source_Port": tcp.sport,
+            "Destination_Port": tcp.dport,
+            "Seq": tcp.seq,
+            "Ack": tcp.ack,
+            "Flags": str(tcp.flags),
+            "Window": tcp.window,
+        }
     }
 
 def handle_udp(pkt):
@@ -100,9 +126,11 @@ def handle_udp(pkt):
     udp = pkt[UDP]
     return {
         "protocol": "UDP",
-        "src_port": udp.sport,
-        "dst_port": udp.dport,
-        "length": udp.len,
+        "l4_attributes": {
+            "Source_Port": udp.sport,
+            "Destination_Port": udp.dport,
+            "Length": udp.len,
+        }
     }
 
 def handle_icmp(pkt):
@@ -111,8 +139,11 @@ def handle_icmp(pkt):
     icmp = pkt[ICMP]
     return {
         "protocol": "ICMP",
-        "type": icmp.type,
-        "code": icmp.code,
+        "l4_attributes": {
+            "Type": protocol_contexts.icmp_type.get(icmp.type),
+            "Code": icmp.code,
+            "Checksum": icmp.chksum
+        }
     }
 
 register("L4", "TCP", handle_tcp)
@@ -125,8 +156,11 @@ def handle_http1(packet):
         "Protocol": "HTTP",
         "Version": None,
         "Content_Length": packet.get("http.content_length"),
-        "Payload": packet.get("http.file_data")
     }
+
+    if packet.get("http.file_data") is not None:
+        http_header["Payload"] = bytes.fromhex(packet.get("http.file_data")).decode("utf-8")
+    
     if packet.get("http.request.version"):
         http_header.update({"Version": packet.get("http.request.version")})
         http_header["Request_Method"] = packet.get("http.request.method")
@@ -186,7 +220,9 @@ def handle_tls(packet):
         "Version": protocol_contexts.tls_name_versions.get(packet.get("tls.record.version")),
         "Record_Length": packet.get("tls.record.length"),
         "Encrypted_Protocol": packet.get("tls.app_data_proto"),
-        "Encrypted_Content": packet.get("tls.app_data")
+        "Encrypted_Content": packet.get("tls.app_data"),
+        "Content_Type": packet.get("tls.record.content_type"),
+        "Handshake_Type": packet.get("tls.handshake.type")
     }
 
 def handle_ssh(packet):
@@ -263,6 +299,7 @@ def create_tshark(file_path):
             "-e", "frame.number",   # Return specified fields only
             *analysis_fields,  
             "-E", f"separator={field_separator}",   # Separate fields with a specified separator
+            "-E", "quote=d",
             "-E", "header=y"    # Return headers
             # Use the same pipe for stoud and stderr, avoids blocking read in a simplified manner
         ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -280,12 +317,9 @@ def create_tshark_stream(tshark_process):
     else:
         header = header.replace("\n", "").split(field_separator)
 
-    # Parse other packets, one by one
-    for packet in tshark_process.stdout:
-        # Join columns with header values into a dict
-        packet = packet.replace("\n", "").split(field_separator)
-        packet = dict(zip(header, packet))
-
+    # Parse other packets, one by one as CSV
+    csv_reader = csv.DictReader(tshark_process.stdout, fieldnames=header, delimiter=field_separator)
+    for packet in csv_reader:
         yield analyze_tshark(packet)
 
 # Hex dump fallback for unknown protocols
@@ -302,6 +336,8 @@ def identify_l3(pkt):
         return "IPv4"
     if IPv6 in pkt:
         return "IPv6"
+    if ARP in pkt:
+        return "ARP"
     return None
 
 def identify_l4(pkt):
@@ -360,31 +396,31 @@ def analyze_packet(pkt, index):
 # Finishes TCP flows upon fin flag detection
 # If scapy will be retired, tshark returns different flag names, they should be changed here.
 def reassemble_flows(pkt):
-    flags = pkt["layers"]["L4"].get("flags")
+    flags = pkt["layers"]["L4"]["l4_attributes"].get("Flags")
     global flow_num
 
     # Construct a key from IPs and PORTs, prioritize lower port as message source
     # Lower port has no real impact, only normalizes the key creation.
-    if pkt["layers"]["L4"].get("src_port") < pkt["layers"]["L4"].get("dst_port"):
-        src_ip = pkt["layers"]["L3"].get("src")
-        dst_ip = pkt["layers"]["L3"].get("dst")
-        src_port = pkt["layers"]["L4"].get("src_port")
-        dst_port = pkt["layers"]["L4"].get("dst_port")
+    if pkt["layers"]["L4"]["l4_attributes"].get("Source_Port") < pkt["layers"]["L4"]["l4_attributes"].get("Destination_Port"):
+        src_ip = pkt["layers"]["L3"]["l3_attributes"].get("Source_IP")
+        dst_ip = pkt["layers"]["L3"]["l3_attributes"].get("Destination_IP")
+        src_port = pkt["layers"]["L4"]["l4_attributes"].get("Source_Port")
+        dst_port = pkt["layers"]["L4"]["l4_attributes"].get("Destination_Port")
     else:
-        dst_ip = pkt["layers"]["L3"].get("src")
-        src_ip = pkt["layers"]["L3"].get("dst")
-        dst_port = pkt["layers"]["L4"].get("src_port")
-        src_port = pkt["layers"]["L4"].get("dst_port")
+        dst_ip = pkt["layers"]["L3"]["l3_attributes"].get("Source_IP")
+        src_ip = pkt["layers"]["L3"]["l3_attributes"].get("Destination_IP")
+        dst_port = pkt["layers"]["L4"]["l4_attributes"].get("Source_Port")
+        src_port = pkt["layers"]["L4"]["l4_attributes"].get("Destination_Port")
 
     key = (src_ip, dst_ip, src_port, dst_port)
-    sender = (pkt["layers"]["L3"].get("src"), pkt["layers"]["L4"].get("src_port"))
+    sender = (pkt["layers"]["L3"]["l3_attributes"].get("Source_IP"), pkt["layers"]["L4"]["l4_attributes"].get("Source_Port"))
 
-    # S (SYN) flag indicates the beggining of a TCP session
+    # S (SYN) flag indicates the beginning of a TCP session
     if "S" in flags and "A" not in flags:
         flow_cache[key] = {
             "id": flow_num,
             "initiator": sender,
-            "receiver": (pkt["layers"]["L3"].get("dst"), pkt["layers"]["L4"].get("dst_port")),
+            "receiver": (pkt["layers"]["L3"]["l3_attributes"].get("Destination_IP"), pkt["layers"]["L4"]["l4_attributes"].get("Destination_Port")),
             "initiator_fin": False,
             "receiver_fin": False,
         }
@@ -392,33 +428,27 @@ def reassemble_flows(pkt):
         flow_num += 1
     elif flow_cache.get(key) is not None:
         flow = flow_cache[key]
-        # F (FIN) flag indicates that one side want to close the connection
-        if "F" in flags:
-            if sender == flow["receiver"] and flow["initiator_fin"] is True:
-                pkt["flow"] = flow["id"]
-                flow_cache.pop(key)
-            elif sender == flow["initiator"] and flow["receiver_fin"] is True:
-                pkt["flow"] = flow["id"]
-                flow_cache.pop(key)
-            else:
-                if sender == flow["initiator"]:
-                    flow_cache[key]["initiator"] = True
-                elif sender == flow["receiver"]:
-                    flow_cache[key]["receiver"] = True
+        pkt["flow"] = flow["id"]
         # R (RST) flag indicates to break the connection right at this moment
         if "R" in flags:
-            pkt["flow"] = flow["id"]
             flow_cache.pop(key)
-        # Everything else is flow traffic
-        else:
-            pkt["flow"] = flow["id"]
+        # F (FIN) flag indicates that one side wants to close the connection
+        elif "F" in flags:
+            if sender == flow["receiver"]:
+                flow_cache[key]["receiver_fin"] = True
+            elif sender == flow["initiator"]:
+                flow_cache[key]["initiator_fin"] = True
+        # If both sides sent FIN wait for last ACK and then remove flow from cache
+        elif flow["initiator_fin"] is True and flow["receiver_fin"] is True and "A" in flags:
+            flow_cache.pop(key)
+            
     # Packets that are not SYN and have no record in the flow cache
     # are interpreted as having no beginning recorded. In this case they also get a unique flow.
     else:
         flow_cache[key] = {
             "id": flow_num,
             "initiator": sender,
-            "receiver": (pkt["layers"]["L3"].get("dst"), pkt["layers"]["L4"].get("dst_port")),
+            "receiver": (pkt["layers"]["L3"]["l3_attributes"].get("Destination_IP"), pkt["layers"]["L4"]["l4_attributes"].get("Destination_Port")),
             "initiator_fin": False,
             "receiver_fin": False,
         }
@@ -448,6 +478,9 @@ except:
     print(json.dumps({"error": "Failed to establish DB connection"}))
     sys.exit(1)
 
+cursor.execute("UPDATE analysis_job SET status = %s WHERE analysis_id = %s", ("analyzing", analysis_id))
+cursor.execute("UPDATE analysis_job SET l7_status = %s WHERE analysis_id = %s", ("analyzing", analysis_id))
+conn.commit()
 total_size = os.path.getsize(file_path)
 rows = []
 
@@ -460,20 +493,14 @@ try:
                 analysis_id,
                 packet_number,
                 l3_protocol,
-                src_ip, 
-                dst_ip, 
-                captured_packet_length,
-                src_port, 
-                dst_port,
-                tcp_flag,
-                flow,
-                tcp_window,
-                tcp_ack_number,
-                tcp_seq_number,
+                l3_attributes,
                 l4_protocol,
+                l4_attributes,
+                flow,
+                captured_packet_length,
                 timestamp,
                 raw_hex
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
 
         for index, pkt in enumerate(reader, start=1):
             result = analyze_packet(pkt, index)
@@ -500,17 +527,11 @@ try:
                 analysis_id, 
                 result["id"],
                 result["layers"]["L3"].get("protocol"),
-                result["layers"]["L3"].get("src"), 
-                result["layers"]["L3"].get("dst"), 
-                result["layers"]["L3"].get("length"),
-                result["layers"]["L4"].get("src_port"), 
-                result["layers"]["L4"].get("dst_port"),
-                result["layers"]["L4"].get("flags"),
-                result["flow"],
-                result["layers"]["L4"].get("window"),
-                result["layers"]["L4"].get("ack"),
-                result["layers"]["L4"].get("seq"),
+                json.dumps(result["layers"]["L3"].get("l3_attributes")),
                 result["layers"]["L4"].get("protocol"),
+                json.dumps(result["layers"]["L4"].get("l4_attributes")),
+                result["flow"],
+                result["layers"]["L3"].get("length"),
                 result["timestamp"],
                 result["hex_dump"]
             ))
@@ -572,8 +593,6 @@ except Exception as e:
         cursor.close()
         conn.close()
         raise e
-
-
 
 tshark_process.wait()
 # Close DB connection

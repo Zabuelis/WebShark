@@ -132,18 +132,18 @@ sudo docker compose --env-file src/WebShark/.env down
 For quicker packet search this tool supports filtering. Filters are finite, however they can be combined to create more strict filtering conditions. 
 
 1. Filtering example:
-   - Filter chaining can be performed by using && (and) operator. This operator combines 2 different filters as *A AND B AND C* condition.
+   - Filter chaining can be performed by using && (and) operator. This operator combines several different filters as *A AND B AND C* condition.
    - > ip.src == 192.168.1.1 && proto == TLS && ip.dst == 18.97.36.54
 2. Available filters
    - Filters must follow the presented pattern or else will return incorrect or no result.
-   - | Filter | Action |
-     |--------|--------|
-     | ip.src == | Filters results based on specified source IP address. | 
-     | ip.dst == | Filters results based on specifies destination IP address. |
-     | port.src == | Filters results based on specified source PORT. |
-     | port.dst == | Filters results based on specified destination PORT. |
-     | proto == | Filters results based on specified protocol. This filter is not case sensitive so it will accept both lowercase and uppercase values. |
-     | tcp.flow == | Filters results based on specified TCP flow. TCP flows are reassembled during analysis process start from 0. |
+      | Filter | Action |
+      |--------|--------|
+      | ip.src == | Filters results based on specified source IP address. | 
+      | ip.dst == | Filters results based on specifies destination IP address. |
+      | port.src == | Filters results based on specified source PORT. |
+      | port.dst == | Filters results based on specified destination PORT. |
+      | proto == | Filters results based on specified protocol. This filter is case sensitive. In most cases all protocols are upper case except special cases such as IPv4, IPv6. |
+      | tcp.flow == | Filters results based on specified TCP flow. TCP flows are reassembled during analysis process start from 0. |
 
 ---
 

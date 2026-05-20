@@ -1,3 +1,4 @@
+# Tshark Fields
 # Translate raw values to easier understandable ones
 tls_name_versions = {
     "0x0304": "TLS1.3",
@@ -14,10 +15,10 @@ dhcp_message_type = {
 
 # There are many more (https://en.wikipedia.org/wiki/Dynamic_Host_Configuration_Protocol#Options), these are the ones encountered in samples 
 dhcp_request_list = {
-    "1": "Subnet Mask - ",
-    "3": "Router - ",
-    "6": "DNS - ",
-    "42": "NTP - "
+    "1": "(1) Subnet Mask -",
+    "3": "(3) Router -",
+    "6": "(6) DNS -",
+    "42": "(42) NTP -"
 }
 
 # tshark retruns True for client side, false for server side
@@ -33,5 +34,24 @@ ssh_message_codes = {
     "21": "New keys (21)",
     "31": "Elliptic Curve Diffie-Hellman Key Exchange Reply (31)",
     "30": "Elliptic Curve Diffie-Hellman Key Exchange Reply (31)"
+}
+
+# Scapy fields
+# General type codes https://en.wikipedia.org/wiki/Internet_Control_Message_Protocol
+icmp_type = {
+    3: "Destination Unreachable",
+    4: "Source Quench",
+    5: "Redirect Message",
+    8: "Echo Request",
+    9: "Router Advertisement",
+    10: "Router Router Solicitation",
+    11: "Time Exceeded",
 
 }
+
+# General opcodes https://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml
+arp_opcode = {
+    1: "Request",
+    2: "Reply",
+}
+

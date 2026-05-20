@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Middleware\EnsureRateLimiting;
 use App\Http\Middleware\EnsureAnalysisExists;
+use App\Http\Middleware\ProgressiveRateLimit;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -27,6 +27,16 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'analysis.exists' => EnsureAnalysisExists::class,
+            'pcap.block.check' => ProgressiveRateLimit::class,
+        ]);
+
+        // was added to ensure that certain middleware are always executed in a specific order
+        $middleware->priority([
+            \Illuminate\Cookie\Middleware\EncryptCookies::class,
+            \Illuminate\Session\Middleware\StartSession::class,
+            \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+            \App\Http\Middleware\ProgressiveRateLimit::class,
+            \Illuminate\Routing\Middleware\ThrottleRequests::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -12,6 +12,8 @@ class Packet extends Model
     
     // Laravel eloquent treats JSONB as a string. This cast becomes a JSON instead of a string in the frontend
     protected $casts = [
-        'l7_attributes' => 'array'
+        'l7_attributes' => 'array',
+        'l3_attributes' => 'array',
+        'l4_attributes' => 'array',
     ];
 }

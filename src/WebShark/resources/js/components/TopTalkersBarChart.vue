@@ -39,7 +39,7 @@ function compute_packet_amount(){
 function compute_IP_addresses(){
     var data = []
     props.data.forEach(record => {
-        data.push(record.IP)
+        data.push(record.ip)
     })
     return data
 }
