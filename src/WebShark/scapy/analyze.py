@@ -18,6 +18,18 @@ csv.field_size_limit(sys.maxsize)
 # Define upper protocol fields for retreival. All of them can be found here https://www.wireshark.org/docs/dfref/
 # Keys are used as filters for tshark, they must exactly match with the documentation
 tshark_protocols = {
+    # IPv4 fields
+    "ip": [ "ip.src", "ip.dst", "ip.ttl" ],
+    # IPv6 fields
+    "ipv6": [ "ipv6.src", "ipv6.dst", "ipv6.hlim", "ipv6.nxt" ],
+    # ARP fields
+    "arp": [ "arp.src.proto_ipv4", "arp.src.hw_mac", "arp.dst.hw_mac", "arp.dst.proto_ipv4", "arp.opcode", "arp.proto.type" ],
+    # TCP fields
+    "tcp": [ "tcp.srcport", "tcp.dstport", "tcp.seq", "tcp.ack", "tcp.flags.str", "tcp.window_size" ],
+    # UDP fields
+    "udp": [ "udp.srcport", "udp.dstport", "udp.length" ],
+    # ICMP fields
+    "icmp": [ "icmp.type", "icmp.code", "icmp.checksum" ],
     # HTTP 1/1.1 fields
     "http": [ "http.request.version", "http.authorization", "http.response.version", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection", "http.response.phrase", "http.file_data", "http.content_length"],
     # DNS fields
@@ -51,51 +63,37 @@ def register(layer, name, func):
     handlers[layer][name] = func
 
 # L3 handlers
-def handle_ipv4(pkt):
-    if IP not in pkt:
-        return None
-    ip = pkt[IP]
+def handle_ipv4(packet):
     return {
         "protocol": "IPv4",
-        "length": ip.len,
         "l3_attributes": {
-            "Source_IP": ip.src,
-            "Destination_IP": ip.dst,
-            "TTL": ip.ttl,
-            "Protocol_Num": ip.proto,
+            "Source_IP": packet.get("ip.src"),
+            "Destination_IP": packet.get("ip.dst"),
+            "TTL": packet.get("ip.ttl"),
         }
     }
 
-def handle_ipv6(pkt):
-    if IPv6 not in pkt:
-        return None
-    ip6 = pkt[IPv6]
+def handle_ipv6(packet):
     return {
         "protocol": "IPv6",
-        "length": ip6.plen,
         "l3_attributes": {
-            "Source_IP": ip6.src,
-            "Destination_IP": ip6.dst,
-            "Hop_Limit": ip6.hlim,
-            "Next_Header": ip6.nh,
+            "Source_IP": packet.get("ipv6.src"),
+            "Destination_IP": packet.get("ipv6.dst"),
+            "Hop_Limit": packet.get("ipv6.hlim"),
+            "Next_Header": packet.get("ipv6.nxt"),
         }
     }
 
-def handle_arp(pkt):
-    if ARP not in pkt:
-        return None
-    arp = pkt[ARP]
+def handle_arp(packet):
     return {
         "protocol": "ARP",
-        # Length is fixed 14 bytes Ethernet, 28 ARP
-        "length": 48,
         "l3_attributes": {
-            "Source_IP": arp.psrc,
-            "Destination_IP": arp.pdst,
-            "Mac_Src": arp.hwsrc,
-            "Mac_Dst": arp.hwdst,
-            "Proto_Type": arp.ptype,
-            "Opcode": protocol_contexts.arp_opcode.get(arp.op)
+            "Source_IP": packet.get("arp.src.proto_ipv4"),
+            "Destination_IP": packet.get("arp.dst.proto_ipv4"),
+            "Mac_Src": packet.get("arp.src.hw_mac"),
+            "Mac_Dst": packet.get("arp.dst.hw_mac"),
+            "Proto_Type": packet.get("arp.proto.type"),
+            "Opcode": protocol_contexts.arp_opcode.get(int(packet.get("arp.opcode")))
         }
     }
 
@@ -104,45 +102,36 @@ register("L3", "IPv6", handle_ipv6)
 register("L3", "ARP", handle_arp)
 
 # L4 handlers
-def handle_tcp(pkt):
-    if TCP not in pkt:
-        return None
-    tcp = pkt[TCP]
+def handle_tcp(packet):
     return {
         "protocol": "TCP",
         "l4_attributes": {
-            "Source_Port": tcp.sport,
-            "Destination_Port": tcp.dport,
-            "Seq": tcp.seq,
-            "Ack": tcp.ack,
-            "Flags": str(tcp.flags),
-            "Window": tcp.window,
+            "Source_Port": packet.get("tcp.srcport"),
+            "Destination_Port": packet.get("tcp.dstport"),
+            "Seq": packet.get("tcp.seq"),
+            "Ack": packet.get("tcp.ack"),
+            "Flags": packet.get("tcp.flags.str"),
+            "Window": packet.get("tcp.window_size"),
         }
     }
 
-def handle_udp(pkt):
-    if UDP not in pkt:
-        return None
-    udp = pkt[UDP]
+def handle_udp(packet):
     return {
         "protocol": "UDP",
         "l4_attributes": {
-            "Source_Port": udp.sport,
-            "Destination_Port": udp.dport,
-            "Length": udp.len,
+            "Source_Port": packet.get("udp.srcport"),
+            "Destination_Port": packet.get("udp.dstport"),
+            "Length": packet.get("udp.length"),
         }
     }
 
-def handle_icmp(pkt):
-    if ICMP not in pkt:
-        return None
-    icmp = pkt[ICMP]
+def handle_icmp(packet):
     return {
         "protocol": "ICMP",
         "l4_attributes": {
-            "Type": protocol_contexts.icmp_type.get(icmp.type),
-            "Code": icmp.code,
-            "Checksum": icmp.chksum
+            "Type": protocol_contexts.icmp_type.get(packet.get("icmp.type")),
+            "Code": packet.get("icmp.code"),
+            "Checksum": packet.get("icmp.checksum")
         }
     }
 
@@ -294,10 +283,12 @@ def create_tshark(file_path):
 
     try:
         tshark_process = subprocess.Popen(["tshark", "-r", file_path,
-            "-Y", filter_fields,    # Only return defined protocols
+            # "-Y", filter_fields,    # Only return defined protocols
             "-T", "fields", # Field format
             "-e", "frame.number",   # Return specified fields only
             *analysis_fields,  
+            "-e", "frame.time_relative",
+            "-e", "frame.len",
             "-E", f"separator={field_separator}",   # Separate fields with a specified separator
             "-E", "quote=d",
             "-E", "header=y"    # Return headers
@@ -320,7 +311,7 @@ def create_tshark_stream(tshark_process):
     # Parse other packets, one by one as CSV
     csv_reader = csv.DictReader(tshark_process.stdout, fieldnames=header, delimiter=field_separator)
     for packet in csv_reader:
-        yield analyze_tshark(packet)
+        yield analyze_packet(packet)
 
 # Hex dump fallback for unknown protocols
 def get_hex_dump(pkt):
@@ -331,21 +322,21 @@ def get_hex_dump(pkt):
         return None
 
 # Identify which protocol a packet uses by looking at its layers
-def identify_l3(pkt):
-    if IP in pkt:
+def identify_l3(packet):
+    if packet.get("ip.src"):
         return "IPv4"
-    if IPv6 in pkt:
+    elif packet.get("ipv6.src"):
         return "IPv6"
-    if ARP in pkt:
+    elif packet.get("arp.src.proto_ipv4"):
         return "ARP"
     return None
 
-def identify_l4(pkt):
-    if TCP in pkt:
+def identify_l4(packet):
+    if packet.get("tcp.srcport"):
         return "TCP"
-    if UDP in pkt:
+    elif packet.get("udp.srcport"):
         return "UDP"
-    if ICMP in pkt:
+    elif packet.get("icmp.type"):
         return "ICMP"
     return None
 
@@ -366,29 +357,34 @@ def validate_pcap(file_path):
         return False
 
 # Main function
-def analyze_packet(pkt, index):
+def analyze_packet(packet):
     result = {
-        "id": index,
-        "length": len(pkt),
-        "timestamp": float(pkt.time),
+        "id": int(packet.get("frame.number")),
+        "length": int(packet.get("frame.len")),
+        "timestamp": float(packet.get("frame.time_relative")),
         "flow": None,
         "layers": {
             "L3": {},
             "L4": {},
+            "L7": {},
         },
-        "hex_dump": get_hex_dump(pkt),
+        # "hex_dump": get_hex_dump(pkt),
     }
 
     # L3
-    l3_name = identify_l3(pkt)
+    l3_name = identify_l3(packet)
     if l3_name and l3_name in handlers["L3"]:
-        result["layers"]["L3"] = handlers["L3"][l3_name](pkt)
+        result["layers"]["L3"] = handlers["L3"][l3_name](packet)
 
     # L4
-    l4_name = identify_l4(pkt)
+    l4_name = identify_l4(packet)
     if l4_name and l4_name in handlers["L4"]:
-        result["layers"]["L4"] = handlers["L4"][l4_name](pkt)
+        result["layers"]["L4"] = handlers["L4"][l4_name](packet)
 
+    l7_name = identify_l7(packet)
+    if l7_name and l7_name in handlers["L7"]:
+        result["layers"]["L7"] = handlers["L7"][l7_name](packet)
+    
     return result
 
 # Asigns TCP packets to a specific flow, based on flow_cache dict
@@ -482,64 +478,65 @@ cursor.execute("UPDATE analysis_job SET status = %s WHERE analysis_id = %s", ("a
 cursor.execute("UPDATE analysis_job SET l7_status = %s WHERE analysis_id = %s", ("analyzing", analysis_id))
 conn.commit()
 total_size = os.path.getsize(file_path)
+current_pos = 0
 rows = []
 
 # Critical operation (if this fails, analysis can't be displayed)
 try:
-    with PcapReader(file_path) as reader:
-        row_limit = 1000
-        query = """INSERT INTO packet 
-            (
-                analysis_id,
-                packet_number,
-                l3_protocol,
-                l3_attributes,
-                l4_protocol,
-                l4_attributes,
-                flow,
-                captured_packet_length,
-                timestamp,
-                raw_hex
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+    tshark_process = create_tshark(file_path)
+    tshark_stream = create_tshark_stream(tshark_process)
+    row_limit = 1000
+    query = """INSERT INTO packet 
+        (
+            analysis_id,
+            packet_number,
+            l3_protocol,
+            l3_attributes,
+            l4_protocol,
+            l4_attributes,
+            flow,
+            captured_packet_length,
+            timestamp,
+            l7_attributes
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
 
-        for index, pkt in enumerate(reader, start=1):
-            result = analyze_packet(pkt, index)
+    for packet in tshark_stream:
 
-            if result["layers"]["L4"].get("protocol") is not None and "TCP" in result["layers"]["L4"].get("protocol"):
-                result = reassemble_flows(result)
+        if packet["layers"]["L4"].get("protocol") is not None and "TCP" in packet["layers"]["L4"].get("protocol"):
+            packet = reassemble_flows(packet)
 
 
-            if index % 500 == 0:
-                current_pos = reader.f.tell()
-            
-                progress = 0
-                if total_size > 0:
-                    progress = min(int((current_pos / total_size) * 100), 100)
-            
-                cursor.execute(
-                    "UPDATE analysis_job SET progress_percentage = %s WHERE analysis_id = %s", 
-                    (progress, analysis_id)
-                )
-                conn.commit()
-            
-            # Make a list of 1000 tuples and then commit to DB
-            rows.append((
-                analysis_id, 
-                result["id"],
-                result["layers"]["L3"].get("protocol"),
-                json.dumps(result["layers"]["L3"].get("l3_attributes")),
-                result["layers"]["L4"].get("protocol"),
-                json.dumps(result["layers"]["L4"].get("l4_attributes")),
-                result["flow"],
-                result["layers"]["L3"].get("length"),
-                result["timestamp"],
-                result["hex_dump"]
-            ))
-            
-            if len(rows) >= row_limit:
-                psycopg2.extras.execute_batch(cursor, query, rows)
-                conn.commit()
-                rows.clear()
+        if packet.get("id") % 500 == 0:
+            current_pos += packet.get("length")
+        
+            progress = 0
+            if total_size > 0:
+                progress = min(int((current_pos / total_size) * 100), 100)
+        
+            cursor.execute(
+                "UPDATE analysis_job SET progress_percentage = %s WHERE analysis_id = %s", 
+                (progress, analysis_id)
+            )
+            conn.commit()
+        
+        # Make a list of 1000 tuples and then commit to DB
+        rows.append((
+            analysis_id, 
+            packet["id"],
+            packet["layers"]["L3"].get("protocol"),
+            json.dumps(packet["layers"]["L3"].get("l3_attributes")),
+            packet["layers"]["L4"].get("protocol"),
+            json.dumps(packet["layers"]["L4"].get("l4_attributes")),
+            packet["flow"],
+            packet.get("length"),
+            packet["timestamp"],
+            json.dumps(packet["layers"]["L7"]) 
+        ))
+        
+        if len(rows) >= row_limit:
+            psycopg2.extras.execute_batch(cursor, query, rows)
+            conn.commit()
+            rows.clear()
 
     if len(rows) > 0:
         psycopg2.extras.execute_batch(cursor, query, rows)
@@ -559,40 +556,42 @@ try:
     conn.commit()
 
 except Exception as e:
+    tshark_process.kill()
+    tshark_process.wait()
     cursor.close()
     conn.close()
     raise e
 
-# Optional operation (if this fails L3-L4 information will be displayed in the analysis)
-try:
-    tshark_process = create_tshark(file_path)
-    tshark_stream = create_tshark_stream(tshark_process)
+# # Optional operation (if this fails L3-L4 information will be displayed in the analysis)
+# try:
+#     tshark_process = create_tshark(file_path)
+#     tshark_stream = create_tshark_stream(tshark_process)
 
-    query = """
-        UPDATE packet set l7_attributes = %s WHERE analysis_id = %s AND packet_number = %s
-    """
-    rows.clear()
-    for pkt in tshark_stream:
-        rows.append((
-            json.dumps(pkt["layers"]["L7"]),
-            analysis_id,
-            pkt["id"]
-        ))
-        if len(rows) >= row_limit:
-            psycopg2.extras.execute_batch(cursor, query, rows)
-            conn.commit()
-            rows.clear()
+#     query = """
+#         UPDATE packet set l7_attributes = %s WHERE analysis_id = %s AND packet_number = %s
+#     """
+#     rows.clear()
+#     for pkt in tshark_stream:
+#         rows.append((
+#             json.dumps(pkt["layers"]["L7"]),
+#             analysis_id,
+#             pkt["id"]
+#         ))
+#         if len(rows) >= row_limit:
+#             psycopg2.extras.execute_batch(cursor, query, rows)
+#             conn.commit()
+#             rows.clear()
 
-    if len(rows) > 0:
-        psycopg2.extras.execute_batch(cursor, query, rows)
-        conn.commit()
+#     if len(rows) > 0:
+#         psycopg2.extras.execute_batch(cursor, query, rows)
+#         conn.commit()
 
-except Exception as e:
-        tshark_process.kill()
-        tshark_process.wait()
-        cursor.close()
-        conn.close()
-        raise e
+# except Exception as e:
+#         tshark_process.kill()
+#         tshark_process.wait()
+#         cursor.close()
+#         conn.close()
+#         raise e
 
 tshark_process.wait()
 # Close DB connection
