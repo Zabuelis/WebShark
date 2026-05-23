@@ -130,11 +130,11 @@ class PcapController extends Controller
 
         // If we are here, everything went well
         $props['total_packets'] = Packet::where('analysis_id', $id)->count();
-        $props['total_bytes']   = (int) Packet::where('analysis_id', $id)->sum('captured_packet_length');
+        $props['total_bytes'] = (int) Packet::where('analysis_id', $id)->sum('captured_packet_length');
         $props['total_flows'] = Packet::where('analysis_id', $id)->whereNotNull('flow')->distinct('flow')->count();
 
         $first = Packet::where('analysis_id', $id)->orderBy('packet_number', 'asc')->value('timestamp');
-        $last  = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->value('timestamp');
+        $last = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->value('timestamp');
 
         // L3 protocol distribution based on amount of packets containing L3 data
         $props['l3_distribution'] = Packet::select('l3_protocol as protocol_name',  DB::raw('count (*) as records'))
@@ -167,10 +167,8 @@ class PcapController extends Controller
             ->orderBy('packet_size', 'desc')
             ->get();
 
-        $lastPacket = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->first();
-
         $props['first_packet_time'] = $first ? (float) $first : 0;
-        $props['last_packet_time']  = $last  ? (float) $last  : 0;
+        $props['last_packet_time'] = $last ? (float) $last : 0;
 
 
         if ($l7_status === 'finished'){
@@ -223,7 +221,6 @@ class PcapController extends Controller
                 'l7_attributes',
                 'flow',
                 'captured_packet_length',
-                'raw_hex',
             ]);
 
         return response()->json([
@@ -271,7 +268,6 @@ class PcapController extends Controller
                 'l7_attributes',
                 'flow',
                 'captured_packet_length',
-                'raw_hex',
             ]);
 
         return response()->json([

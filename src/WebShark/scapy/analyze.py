@@ -287,7 +287,7 @@ def create_tshark(file_path):
             "-T", "fields", # Field format
             "-e", "frame.number",   # Return specified fields only
             *analysis_fields,  
-            "-e", "frame.time_relative",
+            "-e", "frame.time_epoch",
             "-e", "frame.len",
             "-E", f"separator={field_separator}",   # Separate fields with a specified separator
             "-E", "quote=d",
@@ -361,7 +361,7 @@ def analyze_packet(packet):
     result = {
         "id": int(packet.get("frame.number")),
         "length": int(packet.get("frame.len")),
-        "timestamp": float(packet.get("frame.time_relative")),
+        "timestamp": float(packet.get("frame.time_epoch")),
         "flow": None,
         "layers": {
             "L3": {},
@@ -529,7 +529,7 @@ try:
             json.dumps(packet["layers"]["L4"].get("l4_attributes")),
             packet["flow"],
             packet.get("length"),
-            packet["timestamp"],
+            packet.get("timestamp"),
             json.dumps(packet["layers"]["L7"]) 
         ))
         

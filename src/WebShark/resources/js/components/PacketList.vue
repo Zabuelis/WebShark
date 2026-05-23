@@ -8,7 +8,6 @@ const props = defineProps({
     l7_status: String,
     first_packet_time: Number,
 })
-
 const selectedPacket = ref(null)
 
 // Takes JSON object and rebuilds it into an array of [attribute_name, attribute_value] pairs.
@@ -455,7 +454,7 @@ const isFlowHighlightActive = computed(() =>
                                 </span>
                             </div>
                             <div class="text-slate-500 text-xs">{{ packet.captured_packet_length }}</div>
-                            <div class="text-slate-600 truncate text-xs italic">
+                            <div class="text-slate-600 text-xs truncate italic">
                                 {{ packet._placeholder ? 'Loading...' : protocolSpecificInformation(packet) }}
                             </div>
                         </div>
@@ -520,14 +519,6 @@ const isFlowHighlightActive = computed(() =>
                             {{ field.value }}
                         </span>
                     </div>
-                </div>
-            </div>
-
-            <!-- Raw Hex -->
-            <div class="mt-8">
-                <div class="text-[10px] font-bold text-slate-400 border-b border-slate-100 uppercase tracking-widest mb-3">Raw Hex</div>
-                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 font-mono text-[11px] text-slate-600 leading-relaxed shadow-sm">
-                    {{ selectedPacket.raw_hex }}
                 </div>
             </div>
         </div>
