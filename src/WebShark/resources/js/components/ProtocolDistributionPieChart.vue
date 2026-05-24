@@ -27,8 +27,6 @@ const props = defineProps({
 const minimum_precentage = 0.01
 const minimum_fields = 3
 
-// others, total_records and chartData should be kept computed(reactive) as L7 data updates not all at once especially with bigger files.
-
 // If there are more than minimum_fields different fields and 
 // it takes up less than set precentage threshold aggregate them and display as others
 const total_records = computed(() => {

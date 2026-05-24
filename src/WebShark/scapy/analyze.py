@@ -15,8 +15,7 @@ csv.field_size_limit(sys.maxsize)
 # A dict is a data structure that maps keys to values (like hashmap in other languages).
 # in our case dict that maps: layer -> protocol name -> function.
 
-# Define upper protocol fields for retreival. All of them can be found here https://www.wireshark.org/docs/dfref/
-# Keys are used as filters for tshark, they must exactly match with the documentation
+# Define protocol fields for retreival. All of them can be found here https://www.wireshark.org/docs/dfref/
 tshark_protocols = {
     # IPv4 fields
     "ip": [ "ip.src", "ip.dst", "ip.ttl" ],
@@ -247,39 +246,19 @@ def identify_l7(packet):
     elif packet.get("ssh.direction"):
         return "SSH"
     return None
-    
-def analyze_tshark(packet):
-    result = {
-        "id": packet.get("frame.number"),
-        "layers":{
-            "L7": {},
-        }
-    }
-
-    l7_name = identify_l7(packet)
-    if l7_name and l7_name in handlers["L7"]:
-        result["layers"]["L7"] = handlers["L7"][l7_name](packet)
-    
-    return result
-    
 
 # Create a subprocess (same as fork) that runs tshark
 # Subprocess uses a pipe to receive data from tshark (only a limited amount of data is stored in the memory).
 def create_tshark(file_path):
     # Construct argument string of required fields
     analysis_fields = []
-    filter_fields = ""
     if tshark_protocols:
         for protocol in tshark_protocols:
             if protocol:
-                filter_fields += " | " + protocol
                 protocol_fields = tshark_protocols.get(protocol)
                 if protocol_fields:
                         for field in protocol_fields:
                             analysis_fields.extend(["-e", field])
-
-    filter_fields = filter_fields.strip(" | ")
-    filter_fields = filter_fields.replace("|", "or")
 
     try:
         tshark_process = subprocess.Popen(["tshark", "-r", file_path,
@@ -368,7 +347,6 @@ def analyze_packet(packet):
             "L4": {},
             "L7": {},
         },
-        # "hex_dump": get_hex_dump(pkt),
     }
 
     # L3
@@ -475,7 +453,6 @@ except:
     sys.exit(1)
 
 cursor.execute("UPDATE analysis_job SET status = %s WHERE analysis_id = %s", ("analyzing", analysis_id))
-cursor.execute("UPDATE analysis_job SET l7_status = %s WHERE analysis_id = %s", ("analyzing", analysis_id))
 conn.commit()
 total_size = os.path.getsize(file_path)
 current_pos = 0
@@ -501,14 +478,11 @@ try:
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
 
     for packet in tshark_stream:
-
+        current_pos += packet.get("length")
         if packet["layers"]["L4"].get("protocol") is not None and "TCP" in packet["layers"]["L4"].get("protocol"):
             packet = reassemble_flows(packet)
 
-
         if packet.get("id") % 500 == 0:
-            current_pos += packet.get("length")
-        
             progress = 0
             if total_size > 0:
                 progress = min(int((current_pos / total_size) * 100), 100)
@@ -561,37 +535,6 @@ except Exception as e:
     cursor.close()
     conn.close()
     raise e
-
-# # Optional operation (if this fails L3-L4 information will be displayed in the analysis)
-# try:
-#     tshark_process = create_tshark(file_path)
-#     tshark_stream = create_tshark_stream(tshark_process)
-
-#     query = """
-#         UPDATE packet set l7_attributes = %s WHERE analysis_id = %s AND packet_number = %s
-#     """
-#     rows.clear()
-#     for pkt in tshark_stream:
-#         rows.append((
-#             json.dumps(pkt["layers"]["L7"]),
-#             analysis_id,
-#             pkt["id"]
-#         ))
-#         if len(rows) >= row_limit:
-#             psycopg2.extras.execute_batch(cursor, query, rows)
-#             conn.commit()
-#             rows.clear()
-
-#     if len(rows) > 0:
-#         psycopg2.extras.execute_batch(cursor, query, rows)
-#         conn.commit()
-
-# except Exception as e:
-#         tshark_process.kill()
-#         tshark_process.wait()
-#         cursor.close()
-#         conn.close()
-#         raise e
 
 tshark_process.wait()
 # Close DB connection

@@ -5,7 +5,6 @@ import { ref, computed, nextTick, watch } from 'vue'
 const props = defineProps({
     url: String,
     status: String,
-    l7_status: String,
     first_packet_time: Number,
 })
 const selectedPacket = ref(null)
@@ -36,14 +35,14 @@ const detailSections = computed(() => {
         {
             title: "Network Layer",
             fields: [
-                { label: "Protocol", value: p.l3_protocol },
+                p.l3_protocol != null ?? { label: "Protocol", value: p.l3_protocol },
                 ...rebuildPacketFields(p.l3_attributes)
             ]
         },
         {
             title: "Transport Layer",
             fields: [
-                { label: "Protocol", value: p.l4_protocol }, 
+                p.l4_protocol != null ?? { label: "Protocol", value: p.l4_protocol }, 
                 ...rebuildPacketFields(p.l4_attributes)
             ]
         },
@@ -301,24 +300,6 @@ async function initVirtualList() {
     fetchPage(2)
 }
 
-// Refresh packet list in place, preserving the user's scroll position
-async function refreshInPlace() {
-    const scroller = scrollerRef.value
-    const scrollEl = scroller?.$el
-    const savedScrollTop = scrollEl?.scrollTop ?? 0
-    const anchorPage = Math.floor(savedScrollTop / ROW_HEIGHT / PER_PAGE) + 1
-
-    resetStore()
-
-    await fetchPage(anchorPage)
-    fetchPage(anchorPage - 1)
-    fetchPage(anchorPage + 1)
-
-    await nextTick()
-
-    if (scrollEl) scrollEl.scrollTop = savedScrollTop
-}
-
 const formatIP = (ip) => {
     if (!ip || !ip.includes(':')) return ip  // IPv4, return as-is
     const parts = ip.split(':')
@@ -331,16 +312,11 @@ const formatTime = (packetTimestamp) => {
     return (parseFloat(packetTimestamp) - props.first_packet_time).toFixed(6)
 }
 
-// Load packets immediately when status=finished (even while L7 is still dispatching)
+// Load packets immediately when status=finished
 watch(
-    () => [props.status, props.l7_status],
-    async ([newStatus, newL7Status]) => {
+    () => props.status,
+    async (newStatus) => {
         if (newStatus === 'finished') {
-            if (newL7Status !== 'dispatching') {
-                if (newL7Status === 'finished') {
-                    await refreshInPlace()
-                }
-            }
             await initVirtualList()
         }
     },
@@ -434,10 +410,10 @@ const isFlowHighlightActive = computed(() =>
                             @click="handlePacketClick(packet)"
                             :class="[
                                 'packet-row grid gap-x-4 px-6 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono',
-                                { 'bg-blue-100': selectedPacket === packet },
                                 { 'opacity-40 cursor-default hover:bg-transparent': packet._placeholder },
                                 { '!bg-yellow-100': jumpHighlight === packet.packet_number },
-                                { 'bg-indigo-100': isFlowHighlightActive && selectedPacket.flow === packet.flow }
+                                { 'bg-blue-100': selectedPacket === packet },
+                                { 'bg-indigo-100': isFlowHighlightActive && selectedPacket.flow === packet.flow },
                             ]"
                         >
                             <div class="text-slate-400">{{ packet.packet_number }}</div>

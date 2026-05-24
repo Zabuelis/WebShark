@@ -75,13 +75,11 @@ class PcapController extends Controller
     {
         $job = AnalysisJob::where('analysis_id', $id)->firstOrFail();
         $status = $job->status;
-        $l7_status = $job->l7_status;
 
         // Default props
         $props = [
             'id' => $id,
             'status' => $status,
-            'l7_status' => $l7_status,
             'progress' => $job->progress_percentage,
             'expires_at' => $job->expires_at
                 ? Carbon::parse($job->expires_at)->diffForHumans(['parts' => 2, 'join' => true])
@@ -105,10 +103,7 @@ class PcapController extends Controller
         switch ($status) {
             // Check the status and queue position of the job
             case 'dispatching':
-                $props['queue_position'] = AnalysisJob::where(function ($q){
-                    $q->where('status', 'dispatching');
-                    $q->orWhere('l7_status', 'dispatching');
-                })
+                $props['queue_position'] = AnalysisJob::where('status', 'dispatching')
                 ->where('timestamp', '<=', $job->timestamp)
                 ->where('analysis_id', '!=', $id)
                 ->count() + 1;
@@ -122,10 +117,6 @@ class PcapController extends Controller
                 return Inertia::render('Analysis', $props);
             default:
                 break;
-        }
-
-        if ($l7_status === 'failed') {
-            $props['message'] = $job->error_message;
         }
 
         // If we are here, everything went well
@@ -166,19 +157,16 @@ class PcapController extends Controller
             ->groupBy('packet_size')
             ->orderBy('packet_size', 'desc')
             ->get();
+        
+        // L7 protocol distribution based on amount of packets containing L7 data
+        $props['l7_distribution'] = Packet::select(DB::raw("l7_attributes->>'Protocol' as protocol_name"), DB::raw('count (*) as records'))
+            ->where('analysis_id', $id)
+            ->whereRaw("l7_attributes->>'Protocol' IS NOT NULL")
+            ->groupBy('protocol_name')
+            ->get();
 
         $props['first_packet_time'] = $first ? (float) $first : 0;
         $props['last_packet_time'] = $last ? (float) $last : 0;
-
-
-        if ($l7_status === 'finished'){
-            // L7 protocol distribution based on amount of packets containing L7 data
-            $props['l7_distribution'] = Packet::select(DB::raw("l7_attributes->>'Protocol' as protocol_name"), DB::raw('count (*) as records'))
-                ->where('analysis_id', $id)
-                ->whereRaw("l7_attributes->>'Protocol' IS NOT NULL")
-                ->groupBy('protocol_name')
-                ->get();
-        }
 
         return Inertia::render('Analysis', $props);
     }
@@ -323,7 +311,6 @@ class PcapController extends Controller
             'analysis_id' => $uuid,
             'file_path' => $rebuiltFileName,
             'status' => 'dispatching',
-            'l7_status' => 'dispatching',
             'timestamp' => Carbon::now(),
         ]);
 
