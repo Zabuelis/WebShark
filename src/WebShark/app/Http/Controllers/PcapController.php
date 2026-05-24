@@ -283,7 +283,6 @@ class PcapController extends Controller
             foreach($filters as $column => $filter){
                 if(str_contains($term, $filter)){
                     $value = str_replace($filter, '', $term);
-                    $value = "%{$value}%";
                     // There are special cases where filtering takes up more than 1 column and needs to be aggregated.
                     if($filter == 'proto == '){
                         $queryBuilder->where(function ($q) use ($value) {

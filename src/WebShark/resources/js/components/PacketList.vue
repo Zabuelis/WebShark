@@ -132,6 +132,7 @@ const WINDOW_SIZE = 5
 const ROW_HEIGHT = 36
 
 const filterText = ref('')
+const oldFilter = ref('')
 const isSearchActive = computed(() => filterText.value.trim() !== '')
 
 const pageStore = new Map()
@@ -143,8 +144,6 @@ const totalPages = ref(0)
 
 const items = ref([])
 const isSearching = ref(false)
-
-let searchDebounceTimer = null
 
 function resetStore() {
     pageStore.clear()
@@ -280,20 +279,19 @@ async function jumpToPacket() {
     isJumping.value = false
 }
 
-watch(filterText, (val) => {
-    clearTimeout(searchDebounceTimer)
+function filterPackets(){
+    if(filterText.value.trim() !== oldFilter.value){
+        resetStore()
 
-    resetStore()
+        if(filterText.value.trim() === ''){
+            initVirtualList()
+            return
+        }
 
-    if (val.trim() === '') {
-        initVirtualList()
-        return
-    }
-
-    searchDebounceTimer = setTimeout(() => {
         fetchPage(1)
-    }, 300)
-})
+        oldFilter.value = filterText.value.trim()
+    }
+}
 
 async function initVirtualList() {
     await fetchPage(1)
@@ -361,6 +359,13 @@ const isFlowHighlightActive = computed(() =>
                     </svg>
                 </span>
             </div>
+            <button
+                @click="filterPackets"
+                :disabled="isSearching"
+                class="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-md text-sm font-bold transition-colors flex items-center gap-1.5"
+            >
+                Filter
+            </button>
             <div class="flex items-center gap-1.5 shrink-0">
                 <input
                     v-model="jumpInput"
