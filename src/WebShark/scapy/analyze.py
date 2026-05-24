@@ -146,7 +146,10 @@ def handle_http1(packet):
     }
 
     if packet.get("http.file_data") is not None:
-        http_header["Payload"] = bytes.fromhex(packet.get("http.file_data")).decode("utf-8")
+        payload = bytes.fromhex(packet.get("http.file_data")).decode("utf-8")
+        # Sanitize payload to avoid psycopg untranslatable chars, so far encountered only these
+        payload = payload.replace("\u0000", "")
+        http_header["Payload"] = payload
     
     if packet.get("http.request.version"):
         http_header.update({"Version": packet.get("http.request.version")})
