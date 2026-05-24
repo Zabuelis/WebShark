@@ -127,7 +127,7 @@ def handle_icmp(packet):
     return {
         "protocol": "ICMP",
         "l4_attributes": {
-            "Type": protocol_contexts.icmp_type.get(packet.get("icmp.type")),
+            "Type": protocol_contexts.icmp_type.get(int(packet.get("icmp.type"))),
             "Code": packet.get("icmp.code"),
             "Checksum": packet.get("icmp.checksum")
         }
@@ -307,10 +307,10 @@ def identify_l3(packet):
 def identify_l4(packet):
     if packet.get("tcp.srcport"):
         return "TCP"
-    elif packet.get("udp.srcport"):
-        return "UDP"
     elif packet.get("icmp.type"):
         return "ICMP"
+    elif packet.get("udp.srcport"):
+        return "UDP"
     return None
 
 # Validate PCAP

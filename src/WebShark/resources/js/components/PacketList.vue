@@ -301,10 +301,20 @@ async function initVirtualList() {
 }
 
 const formatIP = (ip) => {
-    if (!ip || !ip.includes(':')) return ip  // IPv4, return as-is
-    const parts = ip.split(':')
-    if (parts.length <= 4) return ip  // Short enough already
-    return `${parts[0]}:${parts[1]}:…:${parts[parts.length - 2]}:${parts[parts.length - 1]}`
+    if (!ip) {
+        return ip
+    } else if (!ip.includes(':')){
+        // Edge-case tshark ICMP returns 2 IP addresses, it happens because certain ICMP messages include original IP header.
+        if(ip.includes(',')){
+            return ip.split(',')[0]
+        } else {
+            return ip
+        }
+    } else {
+        const parts = ip.split(':')
+        if (parts.length <= 4) return ip  // Short enough already
+        return `${parts[0]}:${parts[1]}:…:${parts[parts.length - 2]}:${parts[parts.length - 1]}`
+    }
 }
 
 const formatTime = (packetTimestamp) => {
