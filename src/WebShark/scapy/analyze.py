@@ -4,7 +4,6 @@ import psycopg2
 import psycopg2.extras
 import json
 from time import sleep
-from scapy.all import PcapReader, raw, IP, IPv6, TCP, UDP, ICMP, ARP
 import subprocess
 import csv
 from analyzer_modules import *
@@ -291,14 +290,6 @@ def create_tshark_stream(tshark_process):
     csv_reader = csv.DictReader(tshark_process.stdout, fieldnames=header, delimiter=field_separator)
     for packet in csv_reader:
         yield analyze_packet(packet)
-
-# Hex dump fallback for unknown protocols
-def get_hex_dump(pkt):
-    try:
-        raw_bytes = raw(pkt) # f"{byte:02x}" formats each byte as a 2-digit hex number. 255 -> ff, 0 -> 00, 16 -> 10
-        return " ".join(f"{byte:02x}" for byte in raw_bytes)
-    except Exception:
-        return None
 
 # Identify which protocol a packet uses by looking at its layers
 def identify_l3(packet):
