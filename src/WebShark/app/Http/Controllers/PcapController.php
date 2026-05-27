@@ -243,6 +243,7 @@ class PcapController extends Controller
 
         $packets = $queryBuilder
             ->orderBy('flow', 'asc')
+            ->orderByRaw("CAST(l4_attributes->>'Seq' AS INT) ASC")
             ->orderBy('packet_number', 'asc')
             ->forPage($page, $perPage)
             ->get([
