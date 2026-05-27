@@ -1,7 +1,5 @@
 @startuml
 autonumber
-skinparam ParticipantPadding 10
-skinparam BoxPadding 10
 
 actor User
 participant "Vue.js" as Web
@@ -9,8 +7,7 @@ participant "Laravel" as Controller
 participant "Valkey" as Queue
 participant "Queue Worker" as Job
 participant "analyze.py" as Python
-participant "Scapy" as Scapy
-participant "tshark" as Tshark
+participant "Tshark" as Tshark
 database PostgreSQL as DB
 
 == File Upload and Job Dispatch ==
@@ -21,7 +18,7 @@ Web -> Controller: POST /file/uploadPcap
 activate Controller
 Controller -> Controller: Save file
 Controller -> Queue: Dispatch background job
-Controller -> DB: Insert analysis_job\n(status: dispatching, L7_status: dispatching)
+Controller -> DB: Insert analysis_job\n(status: dispatching)
 Controller --> Web: Redirect response
 deactivate Controller
 Web --> User: Show Progress Bar
@@ -31,29 +28,22 @@ deactivate Web
 Job -> Queue: Poll for next job
 activate Job
 Queue --> Job: Return job data
+Job -> DB: Update analysis_job\n(status: analyzing)
 Job -> Python: Run analyze.py
 activate Python
 
 opt file is valid PCAP
-    Python -> Scapy: Analyze L3/L4
-    activate Scapy
-    Scapy -> DB: Update progress_percentage
-    Scapy -> DB: Batch insert packets (L3/L4)
-    Scapy --> Python: Exit (success/fail)
-    deactivate Scapy
-
-    opt Scapy analysis passed
-        Python -> Tshark: Analyze L7
-        activate Tshark
-        Tshark -> DB: Stream update L7_attributes (batch)
-        Tshark --> Python: Exit (success/fail)
-        deactivate Tshark
-    end
+    Python -> Tshark: Analyze L3/L4/L7
+    activate Tshark
+    Tshark -> DB: Update progress_percentage
+    Tshark -> DB: Batch insert packets (L3/L4/L7)
+    Tshark --> Python: Exit (success/fail)
+    deactivate Tshark
 end
 
 Python --> Job: Exit (success/fail)
 deactivate Python
-Job -> DB: Update analysis_job\n(status: finished / failed,\nL7_status: finished / failed)
+Job -> DB: Update analysis_job\n(status: finished / failed)
 Job -> Job: Remove file
 deactivate Job
 
@@ -66,9 +56,9 @@ Controller -> DB: Query analysis_job + packets
 activate DB
 DB --> Controller: Return data
 deactivate DB
-Controller --> Web: Return data\n(status, L7_status, packets)
+Controller --> Web: Return data
 deactivate Controller
-Web --> User: Render results\n(L7 shown only if L7_status: finished)
+Web --> User: Render results
 deactivate Web
 deactivate User
 
