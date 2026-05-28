@@ -391,6 +391,7 @@ def reassemble_flows(pkt):
             "receiver": (pkt["layers"]["L3"]["l3_attributes"].get("Destination_IP"), pkt["layers"]["L4"]["l4_attributes"].get("Destination_Port")),
             "initiator_fin": False,
             "receiver_fin": False,
+            "fin_seq": 0,
         }
         pkt["flow"] = flow_num
         flow_num += 1
@@ -402,13 +403,18 @@ def reassemble_flows(pkt):
             flow_cache.pop(key)
         # F (FIN) flag indicates that one side wants to close the connection
         elif "F" in flags:
+            seq_num = pkt["layers"]["L4"]["l4_attributes"].get("Seq")
             if sender == flow["receiver"]:
                 flow_cache[key]["receiver_fin"] = True
+                flow_cache[key]["fin_seq"] = int(seq_num)
             elif sender == flow["initiator"]:
                 flow_cache[key]["initiator_fin"] = True
+                flow_cache[key]["fin_seq"] = int(seq_num)
         # If both sides sent FIN wait for last ACK and then remove flow from cache
         elif flow["initiator_fin"] is True and flow["receiver_fin"] is True and "A" in flags:
-            flow_cache.pop(key)
+            ack_num = pkt["layers"]["L4"]["l4_attributes"].get("Ack")
+            if ack_num == flow["fin_seq"] + 1:
+                flow_cache.pop(key)
             
     # Packets that are not SYN and have no record in the flow cache
     # are interpreted as having no beginning recorded. In this case they also get a unique flow.
