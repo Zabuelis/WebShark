@@ -243,7 +243,6 @@ class PcapController extends Controller
 
         $packets = $queryBuilder
             ->orderBy('flow', 'asc')
-            ->orderByRaw("CAST(l4_attributes->>'Seq' AS INT) ASC")
             ->orderBy('packet_number', 'asc')
             ->forPage($page, $perPage)
             ->get([
@@ -284,16 +283,24 @@ class PcapController extends Controller
             foreach($filters as $column => $filter){
                 if(str_contains($term, $filter)){
                     $value = str_replace($filter, '', $term);
-                    // There are special cases where filtering takes up more than 1 column and needs to be aggregated.
-                    if($filter == 'proto == '){
-                        $queryBuilder->where(function ($q) use ($value) {
-                            $q->orWhere('l3_protocol', 'like', $value);
-                            $q->orWhere('l4_protocol', 'like', $value);
-                            $q->orWhereRaw("l7_attributes->>'Protocol' like ?", [$value]);
-                        });
-                    } else {
-                        $value = strtoupper($value);
-                        $queryBuilder->whereRaw("{$column} like ?", [$value]);
+                    switch ($filter) {
+                        // Special case where filtering takes up more than 1 column and needs to be aggregated.
+                        case 'proto == ':
+                            $queryBuilder->where(function ($q) use ($value) {
+                                $q->orWhere('l3_protocol', 'like', $value);
+                                $q->orWhere('l4_protocol', 'like', $value);
+                                $q->orWhereRaw("l7_attributes->>'Protocol' like ?", [$value]);
+                            });
+                            break;
+                        // Special case where the value is a digit
+                        case 'tcp.flow == ':
+                            $queryBuilder->where($column, '=', $value);
+                            break;
+                        // Everything else is a string match
+                        default:
+                            $value = strtoupper($value);
+                            $queryBuilder->whereRaw("{$column} like ?", [$value]);
+                            break;
                     }
                 }
             }

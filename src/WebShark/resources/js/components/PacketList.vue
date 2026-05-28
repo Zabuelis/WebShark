@@ -42,7 +42,10 @@ const detailSections = computed(() => {
         {
             title: "Transport Layer",
             fields: [
-                p.l4_protocol != null ? { label: "Protocol", value: p.l4_protocol } : null, 
+                ...[
+                    p.l4_protocol != null ? { label: "Protocol", value: p.l4_protocol } : null,
+                    p.l4_protocol == "TCP" ? { label: "Flow ID", value: p.flow } : null,
+                ].filter(Boolean),
                 ...rebuildPacketFields(p.l4_attributes)
             ]
         },
