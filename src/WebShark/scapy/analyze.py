@@ -108,7 +108,7 @@ def handle_tcp(packet):
             "Destination_Port": packet.get("tcp.dstport"),
             "Seq": packet.get("tcp.seq"),
             "Ack": packet.get("tcp.ack"),
-            "Flags": packet.get("tcp.flags.str"),
+            "Flags": packet.get("tcp.flags.str").replace('·', ''),
             "Window": packet.get("tcp.window_size"),
         }
     }
@@ -382,9 +382,10 @@ def reassemble_flows(pkt):
 
     key = (src_ip, dst_ip, src_port, dst_port)
     sender = (pkt["layers"]["L3"]["l3_attributes"].get("Source_IP"), pkt["layers"]["L4"]["l4_attributes"].get("Source_Port"))
-
+    flow = flow_cache.get(key)
     # S (SYN) flag indicates the beginning of a TCP session
-    if "S" in flags and "A" not in flags:
+    # If this packet key already exists in the cache it is considered as retransmission
+    if "S" in flags and "A" not in flags and flow is None:
         flow_cache[key] = {
             "id": flow_num,
             "initiator": sender,
@@ -395,8 +396,7 @@ def reassemble_flows(pkt):
         }
         pkt["flow"] = flow_num
         flow_num += 1
-    elif flow_cache.get(key) is not None:
-        flow = flow_cache[key]
+    elif flow is not None:
         pkt["flow"] = flow["id"]
         # R (RST) flag indicates to break the connection right at this moment
         if "R" in flags:
@@ -412,6 +412,7 @@ def reassemble_flows(pkt):
                 flow_cache[key]["fin_seq"] = int(seq_num)
         # If both sides sent FIN wait for last ACK and then remove flow from cache
         elif flow["initiator_fin"] is True and flow["receiver_fin"] is True and "A" in flags:
+            # To determine whether this ACK packet is acknowledging the last FIN packet, check the ack_num against last fin's seq_num.
             ack_num = pkt["layers"]["L4"]["l4_attributes"].get("Ack")
             if ack_num == flow["fin_seq"] + 1:
                 flow_cache.pop(key)

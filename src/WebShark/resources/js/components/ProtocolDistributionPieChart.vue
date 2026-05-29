@@ -41,9 +41,9 @@ const others = computed(() => {
 	var i = 0
 	if(props.data.length > minimum_fields){
 		props.data.forEach(record => {
-		if(record.records / total_records.value < minimum_precentage){
-			i+=record.records
-		}
+			if(record.records / total_records.value < minimum_precentage){
+				i+=record.records
+			}
 		})
 		return i
 	}

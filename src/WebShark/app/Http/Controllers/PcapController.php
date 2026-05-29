@@ -298,7 +298,6 @@ class PcapController extends Controller
                             break;
                         // Everything else is a string match
                         default:
-                            $value = strtoupper($value);
                             $queryBuilder->whereRaw("{$column} like ?", [$value]);
                             break;
                     }
