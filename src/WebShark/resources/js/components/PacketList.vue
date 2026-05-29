@@ -430,8 +430,8 @@ const isFlowHighlightActive = computed(() =>
                                 'packet-row grid gap-x-4 px-6 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono',
                                 { 'opacity-40 cursor-default hover:bg-transparent': packet._placeholder },
                                 { '!bg-yellow-100': jumpHighlight === packet.packet_number },
-                                { 'bg-blue-100': selectedPacket === packet },
-                                { 'bg-indigo-100': isFlowHighlightActive && selectedPacket.flow === packet.flow },
+                                { 'bg-blue-200': selectedPacket === packet },
+                                { 'bg-indigo-100': isFlowHighlightActive && selectedPacket.flow === packet.flow && packet !== selectedPacket },
                             ]"
                         >
                             <div class="text-slate-400">{{ packet.packet_number }}</div>
