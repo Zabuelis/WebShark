@@ -290,3 +290,77 @@ homeForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
 })
 
 home.form = homeForm
+
+/**
+* @see routes/web.php:14
+* @route '/help'
+*/
+export const help = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: help.url(options),
+    method: 'get',
+})
+
+help.definition = {
+    methods: ["get","head"],
+    url: '/help',
+} satisfies RouteDefinition<["get","head"]>
+
+/**
+* @see routes/web.php:14
+* @route '/help'
+*/
+help.url = (options?: RouteQueryOptions) => {
+    return help.definition.url + queryParams(options)
+}
+
+/**
+* @see routes/web.php:14
+* @route '/help'
+*/
+help.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
+    url: help.url(options),
+    method: 'get',
+})
+
+/**
+* @see routes/web.php:14
+* @route '/help'
+*/
+help.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
+    url: help.url(options),
+    method: 'head',
+})
+
+/**
+* @see routes/web.php:14
+* @route '/help'
+*/
+const helpForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: help.url(options),
+    method: 'get',
+})
+
+/**
+* @see routes/web.php:14
+* @route '/help'
+*/
+helpForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: help.url(options),
+    method: 'get',
+})
+
+/**
+* @see routes/web.php:14
+* @route '/help'
+*/
+helpForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+    action: help.url({
+        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+            _method: 'HEAD',
+            ...(options?.query ?? options?.mergeQuery ?? {}),
+        }
+    }),
+    method: 'get',
+})
+
+help.form = helpForm
