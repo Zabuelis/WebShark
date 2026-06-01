@@ -16,7 +16,7 @@ class AnalyzePcap implements ShouldQueue
 {
     use Queueable;
 
-    public int $timeout = 600;
+    public int $timeout = 300;
     private $filePath;
     // Generic error messages for the user
     // Exact error should be only visible for the developers

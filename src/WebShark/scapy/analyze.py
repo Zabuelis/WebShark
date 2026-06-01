@@ -415,8 +415,7 @@ def reassemble_flows(pkt):
             # To determine whether this ACK packet is acknowledging the last FIN packet, check the ack_num against last fin's seq_num.
             ack_num = pkt["layers"]["L4"]["l4_attributes"].get("Ack")
             if ack_num == flow["fin_seq"] + 1:
-                flow_cache.pop(key)
-            
+                flow_cache.pop(key)  
     # Packets that are not SYN and have no record in the flow cache
     # are interpreted as having no beginning recorded. In this case they also get a unique flow.
     else:
