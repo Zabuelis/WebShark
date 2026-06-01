@@ -39,6 +39,7 @@ ssh_message_codes = {
 # Scapy fields
 # General type codes https://en.wikipedia.org/wiki/Internet_Control_Message_Protocol
 icmp_type = {
+    0: "Ping",
     3: "Destination Unreachable",
     4: "Source Quench",
     5: "Redirect Message",

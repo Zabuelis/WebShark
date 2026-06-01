@@ -5,10 +5,8 @@ import { ref, computed, nextTick, watch } from 'vue'
 const props = defineProps({
     url: String,
     status: String,
-    l7_status: String,
     first_packet_time: Number,
 })
-
 const selectedPacket = ref(null)
 
 // Takes JSON object and rebuilds it into an array of [attribute_name, attribute_value] pairs.
@@ -37,14 +35,17 @@ const detailSections = computed(() => {
         {
             title: "Network Layer",
             fields: [
-                { label: "Protocol", value: p.l3_protocol },
+                p.l3_protocol != null ? { label: "Protocol", value: p.l3_protocol } : null,
                 ...rebuildPacketFields(p.l3_attributes)
             ]
         },
         {
             title: "Transport Layer",
             fields: [
-                { label: "Protocol", value: p.l4_protocol }, 
+                ...[
+                    p.l4_protocol != null ? { label: "Protocol", value: p.l4_protocol } : null,
+                    p.l4_protocol == "TCP" ? { label: "Flow ID", value: p.flow } : null,
+                ].filter(Boolean),
                 ...rebuildPacketFields(p.l4_attributes)
             ]
         },
@@ -134,6 +135,7 @@ const WINDOW_SIZE = 5
 const ROW_HEIGHT = 36
 
 const filterText = ref('')
+const oldFilter = ref('')
 const isSearchActive = computed(() => filterText.value.trim() !== '')
 
 const pageStore = new Map()
@@ -145,8 +147,6 @@ const totalPages = ref(0)
 
 const items = ref([])
 const isSearching = ref(false)
-
-let searchDebounceTimer = null
 
 function resetStore() {
     pageStore.clear()
@@ -282,49 +282,40 @@ async function jumpToPacket() {
     isJumping.value = false
 }
 
-watch(filterText, (val) => {
-    clearTimeout(searchDebounceTimer)
+function filterPackets(){
+    if(filterText.value.trim() !== oldFilter.value){
+        resetStore()
 
-    resetStore()
+        if(filterText.value.trim() === ''){
+            initVirtualList()
+            return
+        }
 
-    if (val.trim() === '') {
-        initVirtualList()
-        return
-    }
-
-    searchDebounceTimer = setTimeout(() => {
         fetchPage(1)
-    }, 300)
-})
+        oldFilter.value = filterText.value.trim()
+    }
+}
 
 async function initVirtualList() {
     await fetchPage(1)
     fetchPage(2)
 }
 
-// Refresh packet list in place, preserving the user's scroll position
-async function refreshInPlace() {
-    const scroller = scrollerRef.value
-    const scrollEl = scroller?.$el
-    const savedScrollTop = scrollEl?.scrollTop ?? 0
-    const anchorPage = Math.floor(savedScrollTop / ROW_HEIGHT / PER_PAGE) + 1
-
-    resetStore()
-
-    await fetchPage(anchorPage)
-    fetchPage(anchorPage - 1)
-    fetchPage(anchorPage + 1)
-
-    await nextTick()
-
-    if (scrollEl) scrollEl.scrollTop = savedScrollTop
-}
-
 const formatIP = (ip) => {
-    if (!ip || !ip.includes(':')) return ip  // IPv4, return as-is
-    const parts = ip.split(':')
-    if (parts.length <= 4) return ip  // Short enough already
-    return `${parts[0]}:${parts[1]}:…:${parts[parts.length - 2]}:${parts[parts.length - 1]}`
+    if (!ip) {
+        return ip
+    } else if (!ip.includes(':')){
+        // Edge-case tshark ICMP returns 2 IP addresses, it happens because certain ICMP messages include original IP header.
+        if(ip.includes(',')){
+            return ip.split(',')[0]
+        } else {
+            return ip
+        }
+    } else {
+        const parts = ip.split(':')
+        if (parts.length <= 4) return ip  // Short enough already
+        return `${parts[0]}:${parts[1]}:…:${parts[parts.length - 2]}:${parts[parts.length - 1]}`
+    }
 }
 
 const formatTime = (packetTimestamp) => {
@@ -332,16 +323,11 @@ const formatTime = (packetTimestamp) => {
     return (parseFloat(packetTimestamp) - props.first_packet_time).toFixed(6)
 }
 
-// Load packets immediately when status=finished (even while L7 is still dispatching)
+// Load packets immediately when status=finished
 watch(
-    () => [props.status, props.l7_status],
-    async ([newStatus, newL7Status]) => {
+    () => props.status,
+    async (newStatus) => {
         if (newStatus === 'finished') {
-            if (newL7Status !== 'dispatching') {
-                if (newL7Status === 'finished') {
-                    await refreshInPlace()
-                }
-            }
             await initVirtualList()
         }
     },
@@ -376,6 +362,13 @@ const isFlowHighlightActive = computed(() =>
                     </svg>
                 </span>
             </div>
+            <button
+                @click="filterPackets"
+                :disabled="isSearching"
+                class="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-md text-sm font-bold transition-colors flex items-center gap-1.5"
+            >
+                Filter
+            </button>
             <div class="flex items-center gap-1.5 shrink-0">
                 <input
                     v-model="jumpInput"
@@ -435,10 +428,10 @@ const isFlowHighlightActive = computed(() =>
                             @click="handlePacketClick(packet)"
                             :class="[
                                 'packet-row grid gap-x-4 px-6 border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors items-center text-sm font-mono',
-                                { 'bg-blue-100': selectedPacket === packet },
                                 { 'opacity-40 cursor-default hover:bg-transparent': packet._placeholder },
                                 { '!bg-yellow-100': jumpHighlight === packet.packet_number },
-                                { 'bg-indigo-100': isFlowHighlightActive && selectedPacket.flow === packet.flow }
+                                { 'bg-blue-200': selectedPacket === packet },
+                                { 'bg-indigo-100': isFlowHighlightActive && selectedPacket.flow === packet.flow && packet !== selectedPacket },
                             ]"
                         >
                             <div class="text-slate-400">{{ packet.packet_number }}</div>
@@ -455,7 +448,7 @@ const isFlowHighlightActive = computed(() =>
                                 </span>
                             </div>
                             <div class="text-slate-500 text-xs">{{ packet.captured_packet_length }}</div>
-                            <div class="text-slate-600 truncate text-xs italic">
+                            <div class="text-slate-600 text-xs truncate italic">
                                 {{ packet._placeholder ? 'Loading...' : protocolSpecificInformation(packet) }}
                             </div>
                         </div>
@@ -520,14 +513,6 @@ const isFlowHighlightActive = computed(() =>
                             {{ field.value }}
                         </span>
                     </div>
-                </div>
-            </div>
-
-            <!-- Raw Hex -->
-            <div class="mt-8">
-                <div class="text-[10px] font-bold text-slate-400 border-b border-slate-100 uppercase tracking-widest mb-3">Raw Hex</div>
-                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 font-mono text-[11px] text-slate-600 leading-relaxed shadow-sm">
-                    {{ selectedPacket.raw_hex }}
                 </div>
             </div>
         </div>
