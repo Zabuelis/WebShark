@@ -21,7 +21,7 @@ tshark_protocols = {
     # IPv6 fields
     "ipv6": [ "ipv6.src", "ipv6.dst", "ipv6.hlim", "ipv6.nxt" ],
     # ARP fields
-    "arp": [ "arp.src.proto_ipv4", "arp.src.hw_mac", "arp.dst.hw_mac", "arp.dst.proto_ipv4", "arp.opcode", "arp.proto.type" ],
+    "arp": [ "arp.src.proto_ipv4", "arp.src.hw_mac", "arp.dst.hw_mac", "arp.dst.proto_ipv4", "arp.opcode" ],
     # TCP fields
     "tcp": [ "tcp.srcport", "tcp.dstport", "tcp.seq", "tcp.ack", "tcp.flags.str", "tcp.window_size" ],
     # UDP fields
@@ -88,9 +88,8 @@ def handle_arp(packet):
         "l3_attributes": {
             "Source_IP": packet.get("arp.src.proto_ipv4"),
             "Destination_IP": packet.get("arp.dst.proto_ipv4"),
-            "Mac_Src": packet.get("arp.src.hw_mac"),
-            "Mac_Dst": packet.get("arp.dst.hw_mac"),
-            "Proto_Type": packet.get("arp.proto.type"),
+            "Source_MAC": packet.get("arp.src.hw_mac"),
+            "Destination_MAC": packet.get("arp.dst.hw_mac"),
             "Opcode": protocol_contexts.arp_opcode.get(int(packet.get("arp.opcode")))
         }
     }
@@ -264,7 +263,6 @@ def create_tshark(file_path):
 
     try:
         tshark_process = subprocess.Popen(["tshark", "-r", file_path,
-            # "-Y", filter_fields,    # Only return defined protocols
             "-T", "fields", # Field format
             "-e", "frame.number",   # Return specified fields only
             *analysis_fields,  
