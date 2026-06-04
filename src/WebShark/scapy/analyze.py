@@ -29,7 +29,7 @@ tshark_protocols = {
     # ICMP fields
     "icmp": [ "icmp.type", "icmp.code", "icmp.checksum" ],
     # HTTP 1/1.1 fields
-    "http": [ "http.request.version", "http.authorization", "http.response.version", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection", "http.response.phrase", "http.file_data", "http.content_length"],
+    "http": [ "http.request.version", "http.authorization", "http.response.version", "http.response.line", "http.request.line", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.user_agent", "http.connection", "http.file_data", "http.content_length"],
     # DNS fields
     "dns": [ "dns.id", "dns.flags", "dns.flags.response", "dns.qry.name", "dns.qry.type", "dns.resp.name", "dns.resp.type" ],
     # DHCPv4 fields
@@ -157,10 +157,11 @@ def handle_http1(packet):
         http_header["Full_URI"] = packet.get("http.request.full_uri")
         http_header["User_Agent"] = packet.get("http.user_agent")
         http_header["User_Credentials"] = packet.get("http.authorization")
+        http_header["Request_Metadata"] = packet.get("http.request.line")
     elif packet.get("http.response.version"):
         http_header.update({"Version": packet.get("http.response.version")})
         http_header["Response_Code"] = packet.get("http.response.code")
-        http_header["Response_Phrase"] = packet.get("http.response.phrase")
+        http_header["Response_Metadata"] = packet.get("http.response.line")
     else:
         return {}
     http_header["Keep_Alive"] = packet.get("http.connection")
