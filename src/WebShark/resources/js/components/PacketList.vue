@@ -509,7 +509,7 @@ const isFlowHighlightActive = computed(() =>
                 <div class="space-y-2">
                     <div v-for="field in section.fields" :key="field.label" class="flex justify-between items-start gap-4">
                         <span class="text-xs text-slate-400 font-medium whitespace-nowrap">{{ field.label }}</span>
-                        <span class="text-xs font-mono font-bold text-slate-800 text-right break-all">
+                        <span class="text-xs font-mono font-bold text-slate-800 text-left break-all">
                             {{ field.value }}
                         </span>
                     </div>

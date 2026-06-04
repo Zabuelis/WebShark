@@ -21,7 +21,7 @@ tshark_protocols = {
     # IPv6 fields
     "ipv6": [ "ipv6.src", "ipv6.dst", "ipv6.hlim", "ipv6.nxt" ],
     # ARP fields
-    "arp": [ "arp.src.proto_ipv4", "arp.src.hw_mac", "arp.dst.hw_mac", "arp.dst.proto_ipv4", "arp.opcode", "arp.proto.type" ],
+    "arp": [ "arp.src.proto_ipv4", "arp.src.hw_mac", "arp.dst.hw_mac", "arp.dst.proto_ipv4", "arp.opcode" ],
     # TCP fields
     "tcp": [ "tcp.srcport", "tcp.dstport", "tcp.seq", "tcp.ack", "tcp.flags.str", "tcp.window_size" ],
     # UDP fields
@@ -29,7 +29,7 @@ tshark_protocols = {
     # ICMP fields
     "icmp": [ "icmp.type", "icmp.code", "icmp.checksum" ],
     # HTTP 1/1.1 fields
-    "http": [ "http.request.version", "http.authorization", "http.response.version", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.response.phrase", "http.user_agent", "http.connection", "http.response.phrase", "http.file_data", "http.content_length"],
+    "http": [ "http.request.version", "http.authorization", "http.response.version", "http.response.line", "http.request.line", "http.request.method", "http.request.uri", "http.request.full_uri", "http.response.code", "http.user_agent", "http.connection", "http.file_data", "http.content_length"],
     # DNS fields
     "dns": [ "dns.id", "dns.flags", "dns.flags.response", "dns.qry.name", "dns.qry.type", "dns.resp.name", "dns.resp.type" ],
     # DHCPv4 fields
@@ -88,9 +88,8 @@ def handle_arp(packet):
         "l3_attributes": {
             "Source_IP": packet.get("arp.src.proto_ipv4"),
             "Destination_IP": packet.get("arp.dst.proto_ipv4"),
-            "Mac_Src": packet.get("arp.src.hw_mac"),
-            "Mac_Dst": packet.get("arp.dst.hw_mac"),
-            "Proto_Type": packet.get("arp.proto.type"),
+            "Source_MAC": packet.get("arp.src.hw_mac"),
+            "Destination_MAC": packet.get("arp.dst.hw_mac"),
             "Opcode": protocol_contexts.arp_opcode.get(int(packet.get("arp.opcode")))
         }
     }
@@ -158,10 +157,11 @@ def handle_http1(packet):
         http_header["Full_URI"] = packet.get("http.request.full_uri")
         http_header["User_Agent"] = packet.get("http.user_agent")
         http_header["User_Credentials"] = packet.get("http.authorization")
+        http_header["Request_Metadata"] = packet.get("http.request.line")
     elif packet.get("http.response.version"):
         http_header.update({"Version": packet.get("http.response.version")})
         http_header["Response_Code"] = packet.get("http.response.code")
-        http_header["Response_Phrase"] = packet.get("http.response.phrase")
+        http_header["Response_Metadata"] = packet.get("http.response.line")
     else:
         return {}
     http_header["Keep_Alive"] = packet.get("http.connection")
@@ -264,7 +264,6 @@ def create_tshark(file_path):
 
     try:
         tshark_process = subprocess.Popen(["tshark", "-r", file_path,
-            # "-Y", filter_fields,    # Only return defined protocols
             "-T", "fields", # Field format
             "-e", "frame.number",   # Return specified fields only
             *analysis_fields,  
