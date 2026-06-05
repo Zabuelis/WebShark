@@ -75,13 +75,11 @@ class PcapController extends Controller
     {
         $job = AnalysisJob::where('analysis_id', $id)->firstOrFail();
         $status = $job->status;
-        $l7_status = $job->l7_status;
 
         // Default props
         $props = [
             'id' => $id,
             'status' => $status,
-            'l7_status' => $l7_status,
             'progress' => $job->progress_percentage,
             'expires_at' => $job->expires_at
                 ? Carbon::parse($job->expires_at)->diffForHumans(['parts' => 2, 'join' => true])
@@ -105,10 +103,7 @@ class PcapController extends Controller
         switch ($status) {
             // Check the status and queue position of the job
             case 'dispatching':
-                $props['queue_position'] = AnalysisJob::where(function ($q){
-                    $q->where('status', 'dispatching');
-                    $q->orWhere('l7_status', 'dispatching');
-                })
+                $props['queue_position'] = AnalysisJob::where('status', 'dispatching')
                 ->where('timestamp', '<=', $job->timestamp)
                 ->where('analysis_id', '!=', $id)
                 ->count() + 1;
@@ -124,17 +119,13 @@ class PcapController extends Controller
                 break;
         }
 
-        if ($l7_status === 'failed') {
-            $props['message'] = $job->error_message;
-        }
-
         // If we are here, everything went well
         $props['total_packets'] = Packet::where('analysis_id', $id)->count();
-        $props['total_bytes']   = (int) Packet::where('analysis_id', $id)->sum('captured_packet_length');
+        $props['total_bytes'] = (int) Packet::where('analysis_id', $id)->sum('captured_packet_length');
         $props['total_flows'] = Packet::where('analysis_id', $id)->whereNotNull('flow')->distinct('flow')->count();
 
         $first = Packet::where('analysis_id', $id)->orderBy('packet_number', 'asc')->value('timestamp');
-        $last  = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->value('timestamp');
+        $last = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->value('timestamp');
 
         // L3 protocol distribution based on amount of packets containing L3 data
         $props['l3_distribution'] = Packet::select('l3_protocol as protocol_name',  DB::raw('count (*) as records'))
@@ -166,21 +157,16 @@ class PcapController extends Controller
             ->groupBy('packet_size')
             ->orderBy('packet_size', 'desc')
             ->get();
-
-        $lastPacket = Packet::where('analysis_id', $id)->orderBy('packet_number', 'desc')->first();
+        
+        // L7 protocol distribution based on amount of packets containing L7 data
+        $props['l7_distribution'] = Packet::select(DB::raw("l7_attributes->>'Protocol' as protocol_name"), DB::raw('count (*) as records'))
+            ->where('analysis_id', $id)
+            ->whereRaw("l7_attributes->>'Protocol' IS NOT NULL")
+            ->groupBy('protocol_name')
+            ->get();
 
         $props['first_packet_time'] = $first ? (float) $first : 0;
-        $props['last_packet_time']  = $last  ? (float) $last  : 0;
-
-
-        if ($l7_status === 'finished'){
-            // L7 protocol distribution based on amount of packets containing L7 data
-            $props['l7_distribution'] = Packet::select(DB::raw("l7_attributes->>'Protocol' as protocol_name"), DB::raw('count (*) as records'))
-                ->where('analysis_id', $id)
-                ->whereRaw("l7_attributes->>'Protocol' IS NOT NULL")
-                ->groupBy('protocol_name')
-                ->get();
-        }
+        $props['last_packet_time'] = $last ? (float) $last : 0;
 
         return Inertia::render('Analysis', $props);
     }
@@ -223,7 +209,6 @@ class PcapController extends Controller
                 'l7_attributes',
                 'flow',
                 'captured_packet_length',
-                'raw_hex',
             ]);
 
         return response()->json([
@@ -271,7 +256,6 @@ class PcapController extends Controller
                 'l7_attributes',
                 'flow',
                 'captured_packet_length',
-                'raw_hex',
             ]);
 
         return response()->json([
@@ -299,17 +283,23 @@ class PcapController extends Controller
             foreach($filters as $column => $filter){
                 if(str_contains($term, $filter)){
                     $value = str_replace($filter, '', $term);
-                    $value = "%{$value}%";
-                    // There are special cases where filtering takes up more than 1 column and needs to be aggregated.
-                    if($filter == 'proto == '){
-                        $queryBuilder->where(function ($q) use ($value) {
-                            $q->orWhere('l3_protocol', 'like', $value);
-                            $q->orWhere('l4_protocol', 'like', $value);
-                            $q->orWhereRaw("l7_attributes->>'Protocol' like ?", [$value]);
-                        });
-                    } else {
-                        $value = strtoupper($value);
-                        $queryBuilder->whereRaw("{$column} like ?", [$value]);
+                    switch ($filter) {
+                        // Special case where filtering takes up more than 1 column and needs to be aggregated.
+                        case 'proto == ':
+                            $queryBuilder->where(function ($q) use ($value) {
+                                $q->orWhere('l3_protocol', 'like', $value);
+                                $q->orWhere('l4_protocol', 'like', $value);
+                                $q->orWhereRaw("l7_attributes->>'Protocol' like ?", [$value]);
+                            });
+                            break;
+                        // Special case where the value is a digit
+                        case 'tcp.flow == ':
+                            $queryBuilder->where($column, '=', $value);
+                            break;
+                        // Everything else is a string match
+                        default:
+                            $queryBuilder->whereRaw("{$column} like ?", [$value]);
+                            break;
                     }
                 }
             }
@@ -327,7 +317,6 @@ class PcapController extends Controller
             'analysis_id' => $uuid,
             'file_path' => $rebuiltFileName,
             'status' => 'dispatching',
-            'l7_status' => 'dispatching',
             'timestamp' => Carbon::now(),
         ]);
 

@@ -5,4 +5,3 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('app:delete-expired-redis-jobs')->everyMinute();
-Schedule::command('app:delete-expired-ip-markers')->everyMinute();

@@ -39,7 +39,12 @@ function compute_packet_amount(){
 function compute_IP_addresses(){
     var data = []
     props.data.forEach(record => {
-        data.push(record.ip)
+        var ip = record.ip
+        // Edge-case tshark ICMP returns 2 IP addresses, it happens because certain ICMP messages include original IP header.
+        if(ip.includes(',')){
+            ip = ip.split(',')[0]
+        }
+        data.push(ip)
     })
     return data
 }

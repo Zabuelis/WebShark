@@ -24,10 +24,8 @@ return new class extends Migration
             $table->integer('captured_packet_length')->nullable(true);
             $table->jsonb('l7_attributes')->nullable(true);
             $table->decimal('timestamp', 20, 6)->nullable();
-            $table->text('raw_hex')->nullable();
             
             $table->foreign('analysis_id')->references('analysis_id')->on('analysis_job')->onDelete('cascade');
-            $table->index(['analysis_id', 'packet_number']);
         });
     }
 
