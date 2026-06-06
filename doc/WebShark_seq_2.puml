@@ -1,7 +1,5 @@
 @startuml
 autonumber
-skinparam ParticipantPadding 10
-skinparam BoxPadding 10
 
 actor User
 participant "Vue.js" as Web
@@ -9,37 +7,33 @@ participant "Laravel" as Controller
 participant "Valkey" as Queue
 participant "Queue Worker" as Job
 participant "analyze.py" as Python
-participant "Scapy" as Scapy
-participant "tshark" as Tshark
+participant "Tshark" as Tshark
 database PostgreSQL as DB
 
 == Background Processing ==
 Job -> Queue: Poll for next job
 activate Job
 Queue --> Job: Return job data
+Job -> DB: Update analysis_job\n(status: analyzing)
 Job -> Python: Run analyze.py
 activate Python
 
 opt file is valid PCAP
-    Python -> Scapy: Analyze L3/L4
-    activate Scapy
-    Scapy -> DB: Update progress_percentage
-    Scapy -> DB: Batch insert packets (L3/L4)
-    Scapy --> Python: Exit (success/fail)
-    deactivate Scapy
-
-    opt Scapy analysis passed
-        Python -> Tshark: Analyze L7
-        activate Tshark
-        Tshark -> DB: Stream update L7_attributes (batch)
-        Tshark --> Python: Exit (success/fail)
-        deactivate Tshark
+    Python -> Tshark: Analyze layers
+    activate Tshark
+    Tshark --> Python: Return data
+    deactivate Tshark
+    
+    loop for each packet chunk
+        Python -> Python: Parse data
+        Python -> DB: Update progress
+        Python -> DB: Batch insert packets (L3/L4/L7)
     end
 end
 
 Python --> Job: Exit (success/fail)
 deactivate Python
-Job -> DB: Update analysis_job\n(status: finished / failed,\nL7_status: finished / failed)
+Job -> DB: Update analysis_job\n(status: finished / failed)
 Job -> Job: Remove file
 deactivate Job
 

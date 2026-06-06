@@ -11,6 +11,10 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
+Route::get('/help', function () {
+    return Inertia::render('Help');
+})->name('help');
+
 // Use the native 'throttle' middleware
 // Route to display packet data
 Route::post('/file/uploadPcap', [PcapController::class, 'create'])
