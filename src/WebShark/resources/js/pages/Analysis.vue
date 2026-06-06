@@ -118,7 +118,7 @@ function startPolling() {
         router.reload({ 
             only: 
                 [
-                    'status', 'l7_status', 'message', 'total_bytes', 'id', 'first_packet_time',
+                    'status', 'message', 'total_bytes', 'id', 'first_packet_time',
                     'last_packet_time', 'progress', 'expires_at', 'total_packets', 'total_flows',
                     'l7_distribution', 'l3_distribution', 'l4_distribution', 'top_talkers', 'size_distribution',
                     'queue_position'
@@ -137,17 +137,15 @@ function stopPolling() {
 // States used to begin polling and indicate unfinished processing
 const initialStates = ['dispatching', 'analyzing']
 watch(
-    () => [props.status, props.l7_status],
-    async ([newStatus, newL7Status]) => {
-        if (initialStates.includes(newStatus) || initialStates.includes(newL7Status)) {
+    () => props.status,
+    async (newStatus) => {
+        if (initialStates.includes(newStatus)) {
             startPolling()
         }
         if (newStatus === 'finished') {
-            if (newL7Status !== 'analyzing') {
-                stopPolling()
-                totalItems.value = props.total_packets
-                startExpiryPolling()
-            }
+            stopPolling()
+            totalItems.value = props.total_packets
+            startExpiryPolling()
         }
         if (newStatus === 'failed') {
             stopPolling()
@@ -207,17 +205,6 @@ watch(
 
         <NavBar/>
 
-        <!-- Spinner to indicate L7 parsing -->
-        <div v-if="props.l7_status === 'analyzing'" class="bg-sky-100 flex gap-4 border border-sky-400 text-start text-sky-700 pl-6 py-2 justify-center items-center" role="status">
-            <span class="font-bold text-sm">Analyzing Application Layer Data</span>
-                <div class="w-6 h-6 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-        </div>
-
-        <!-- Show this if L7 analytics failed -->
-        <div v-if="props.l7_status === 'failed'" class="bg-sky-100 border border-sky-400 text-center text-sky-700 py-2 " role="alert">
-            <span class="font-bold text-sm">{{ props.message }}</span>
-        </div>
-
         <!-- Expiration Notice -->
         <div v-if="expires_at" class="px-6 py-2 bg-amber-50 text-amber-700 text-xs border-b border-amber-100 flex items-center justify-between">
             
@@ -255,7 +242,7 @@ watch(
         <div class="flex flex-1 overflow-hidden">
 
             <!-- For the packets tab -->
-            <PacketList  v-if="activeTab === 'packets'" :first_packet_time="props.first_packet_time" :url="`/pcap/analysis/${props.id}/packets`" :status="props.status" :l7_status="props.l7_status" />
+            <PacketList  v-if="activeTab === 'packets'" :first_packet_time="props.first_packet_time" :url="`/pcap/analysis/${props.id}/packets`" :status="props.status" />
 
             <!-- For the overview tab -->
             <div v-else-if="activeTab === 'overview'" class="flex-1 overflow-y-auto p-8 bg-slate-50">
@@ -324,7 +311,7 @@ watch(
             </div>
 
             <!-- For the conversations tab -->
-            <PacketList  v-if="activeTab === 'conversations'" :first_packet_time="props.first_packet_time" :url="`/pcap/analysis/${props.id}/flows`" :status="props.status" :l7_status="props.l7_status" />
+            <PacketList  v-if="activeTab === 'conversations'" :first_packet_time="props.first_packet_time" :url="`/pcap/analysis/${props.id}/flows`" :status="props.status" />
 
 
         </div>

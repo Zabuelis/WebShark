@@ -11,16 +11,15 @@ import { Link } from '@inertiajs/vue3'
             <span class="">WebShark</span>
         </Link>
 
-        <!-- Links to informational pages -->
-        <!-- <div>
-            <ul class="navbar-links flex items-center gap-6">
-                <li>
-                    <a class="hover:text-gray-800" href="#">Docs</a>
-                </li>
-                <li>
-                    <a class="hover:text-gray-800" href="#">ToS</a>
-                </li>
-            </ul>
-        </div> -->
+        <!-- Navigation Links -->
+        <div class="navbar-links flex items-center gap-6">
+            <Link 
+                :href="route('help')" 
+                class="hover:text-blue-600 transition duration-150"
+                :class="{ 'text-blue-600 font-semibold': $page.component === 'Help' }"
+            >
+                Help
+            </Link>
+        </div>
     </nav>
 </template>

@@ -4,7 +4,7 @@ WebShark is a web based network packet analyzer.
 
 Upload a `.pcap` or `.pcapng` files and inspect its packets, protocols and IP flows in your browser.
 
-Built with Laravel, Vue.js, Python, Scapy, tshark, PostgreSQL and Valkey.
+Built with Laravel, Vue.js, Python, tshark, PostgreSQL and Valkey.
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-WebShark_CD-007ec6?style=flat-square)](http://193.219.91.103:8000/)
 
@@ -127,13 +127,13 @@ sudo docker compose --env-file src/WebShark/.env down
 ---
 # Usability Guide
 
-## 1. Filters
+## Filters
 
 For quicker packet search this tool supports filtering. Filters are finite, however they can be combined to create more strict filtering conditions. 
 
 1. Filtering example:
-   - Filter chaining can be performed by using && (and) operator. This operator combines several different filters as *A AND B AND C* condition.
-   - > ip.src == 192.168.1.1 && proto == TLS && ip.dst == 18.97.36.54
+   - Filter chaining can be performed by using && (and) operator. This operator combines several different filters as *A AND B AND C* condition:
+      > ip.src == 192.168.1.1 && proto == TLS && ip.dst == 18.97.36.54
 2. Available filters
    - Filters must follow the presented pattern or else will return incorrect or no result.
       | Filter | Action |
@@ -165,7 +165,7 @@ sudo docker compose --env-file src/WebShark/.env exec valkey valkey-cli -n 1 KEY
 ```bash
 # everything
 sudo docker compose --env-file src/WebShark/.env logs -f
-#  cron
+# cron
 sudo docker compose --env-file src/WebShark/.env logs -f cron
 # audit
 tail -f src/WebShark/storage/logs/audit.log
