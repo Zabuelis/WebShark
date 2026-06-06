@@ -33,12 +33,16 @@ Job -> Python: Run analyze.py
 activate Python
 
 opt file is valid PCAP
-    Python -> Tshark: Analyze L3/L4/L7
+    Python -> Tshark: Analyze layers
     activate Tshark
-    Tshark -> DB: Update progress_percentage
-    Tshark -> DB: Batch insert packets (L3/L4/L7)
-    Tshark --> Python: Exit (success/fail)
+    Tshark --> Python: Return data
     deactivate Tshark
+    
+    loop for each packet chunk
+        Python -> Python: Parse data
+        Python -> DB: Update progress
+        Python -> DB: Batch insert packets (L3/L4/L7)
+    end
 end
 
 Python --> Job: Exit (success/fail)
