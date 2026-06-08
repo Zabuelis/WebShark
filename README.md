@@ -11,18 +11,6 @@ Built with Laravel, Vue.js, Python, tshark, PostgreSQL and Valkey.
 
 ---
 
-# Development Quick Start (Recommended)
-
-For a Debian-based machine, run the following command.
-
-This script will clone the repository if needed, install Docker, perform all setup steps and start the application
-
-> [!NOTE]
-> To use a specific branch add `-s -- my-branch-name` at the end
-
-```bash
-curl -fsSL https://git.mif.vu.lt/luse0397/webshark/-/raw/main/setup.sh | bash
-```
 
 ## Managing the Application
 
@@ -43,7 +31,7 @@ make up
 If you are hosting on a VM, close your current SSH session and reconnect with port forwarding command below, then you can access it with http://localhost:8000/
 
 ```bash
-ssh -L 8000:localhost:8000 -L 5173:localhost:5173 <OpenNebula CONNECT_INFO1 (without the ssh)>
+ssh -L 8000:localhost:8000 -L 5173:localhost:5173 <Original ssh address>
 ```
 
 ### Access the UI
@@ -60,11 +48,6 @@ Use these steps if you need to set up the environment manually.
 ## 0. Prerequisites and Cloning (First time only)
 
 Ensure you have Git and Docker installed, then clone the repository and navigate into the directory.
-
-```bash
-git clone https://git.mif.vu.lt/luse0397/webshark.git
-cd webshark
-```
 
 ## 1. Setup (First time only)
 
@@ -103,7 +86,7 @@ sudo docker exec -it webshark-app php artisan migrate
 If you are hosting on a VM, close your current SSH session and reconnect with port forwarding command below, then you can access it with http://localhost:8000/
 
 ```bash
-ssh -L 8000:localhost:8000 -L 5173:localhost:5173 <OpenNebula CONNECT_INFO1 (without the ssh)>
+ssh -L 8000:localhost:8000 -L 5173:localhost:5173 <Original ssh address>
 ```
 
 ## 6. Restart it (First time only)
